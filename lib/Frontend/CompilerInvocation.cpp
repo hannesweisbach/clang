@@ -1580,6 +1580,10 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.HalfArgsAndReturns = Args.hasArg(OPT_fallow_half_arguments_and_returns);
   Opts.GNUAsm = !Args.hasArg(OPT_fno_gnu_inline_asm);
 
+  Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
+  Opts.ProtectVptr = Args.hasArg(OPT_fprotect_vptr);
+  Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
+
   if (!Opts.CurrentModule.empty() && !Opts.ImplementationOfModule.empty() &&
       Opts.CurrentModule != Opts.ImplementationOfModule) {
     Diags.Report(diag::err_conflicting_module_names)
