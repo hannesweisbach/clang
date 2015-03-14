@@ -1027,6 +1027,24 @@ RecordLayoutBuilder::LayoutNonVirtualBases(const CXXRecordDecl *RD) {
       Context.toCharUnitsFromBits(Context.getTargetInfo().getPointerAlign(0));
     EnsureVTablePointerAlignment(PtrAlign);
     HasOwnVFPtr = true;
+
+    if (Context.getLangOpts().ProtectVptr) {
+      auto &&diag = Context.getDiagnostics();
+      unsigned DiagID =
+          diag.getCustomDiagID(Context.getLangOpts().VerboseFaultTolerance
+                                   ? DiagnosticsEngine::Level::Remark
+                                   : DiagnosticsEngine::Level::Ignored,
+                               "%0 space for TMR'ed VPtr in %1");
+      // TODO: proper blacklisting and linking against non-fault-tolerant code
+      if (Context.getLangOpts().NoStdProtection && RD->isBelowStdNamespace()) {
+        diag.Report(DiagID) << "Skip reserving" << RD;
+      } else {
+        diag.Report(DiagID) << "Reserving" << RD;
+        // TODO: DMR
+        PtrWidth = PtrWidth * 3;
+      }
+    }
+
     setSize(getSize() + PtrWidth);
     setDataSize(getSize());
   }
