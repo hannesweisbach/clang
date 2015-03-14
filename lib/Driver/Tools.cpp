@@ -3409,6 +3409,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   else if (Args.hasArg(options::OPT_fprofile_instr_use))
     CmdArgs.push_back("-fprofile-instr-use=pgo-data");
 
+  if (Args.hasArg(options::OPT_fno_std_protection))
+    CmdArgs.push_back("-fno-std-protection");
+  if (Args.hasArg(options::OPT_fverbose_fault_tolerance))
+    CmdArgs.push_back("-fverbose-fault-tolerance");
+  if (Args.hasArg(options::OPT_fprotect_vptr))
+    CmdArgs.push_back("-fprotect-vptr");
+
   if (Args.hasArg(options::OPT_ftest_coverage) ||
       Args.hasArg(options::OPT_coverage))
     CmdArgs.push_back("-femit-coverage-notes");
