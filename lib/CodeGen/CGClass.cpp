@@ -2014,6 +2014,39 @@ CodeGenFunction::InitializeVTablePointer(BaseSubobject Base,
   VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
   CGM.DecorateInstruction(Store, CGM.getTBAAInfoForVTablePtr());
+
+  if (CGM.getLangOpts().ProtectVptr) {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                                 ? DiagnosticsEngine::Level::Remark
+                                 : DiagnosticsEngine::Level::Ignored,
+                             "%0 of TMR'ed VPtr in %1");
+
+    std::string TypeName;
+    llvm::raw_string_ostream Out(TypeName);
+    LoadCXXThis()->getType()->print(Out);
+
+    /* TODO: provide blacklisting & selection here, also. */
+    if (CGM.getLangOpts().NoStdProtection && RD->isBelowStdNamespace()) {
+      diag.Report(DiagID) << "Skip initialisation" << Out.str();
+    } else {
+      diag.Report(DiagID) << "Initialisation" << Out.str();
+
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, 1);
+
+      VTableField = Builder.CreateInBoundsGEP(VTableField, Offset, "VTable1");
+      Store = Builder.CreateStore(VTableAddressPoint, VTableField);
+      CGM.DecorateInstruction(Store, CGM.getTBAAInfoForVTablePtr());
+
+      // Disable for DMR
+      {
+        VTableField = Builder.CreateInBoundsGEP(VTableField, Offset, "VTable2");
+        Store = Builder.CreateStore(VTableAddressPoint, VTableField);
+        CGM.DecorateInstruction(Store, CGM.getTBAAInfoForVTablePtr());
+      }
+    }
+  }
 }
 
 void
