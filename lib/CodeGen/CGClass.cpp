@@ -2125,6 +2125,98 @@ void CodeGenFunction::InitializeVTablePointers(const CXXRecordDecl *RD) {
 
 llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
                                            llvm::Type *Ty) {
+  if (CGM.getLangOpts().ProtectVptr) {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                                 ? DiagnosticsEngine::Level::Remark
+                                 : DiagnosticsEngine::Level::Ignored,
+                             "%0 check of TMR'ed VPtr in %1");
+
+    std::string TypeName;
+    llvm::raw_string_ostream Out(TypeName);
+    This->getType()->print(Out);
+
+    /* TODO: add blacklisting for non-fault-tolerant libs */
+    const std::string std_class("class.std::");
+    const std::string std_struct("struct.std::");
+    const bool isInStd = Out.str().find(std_class) != std::string::npos ||
+                         Out.str().find(std_struct) != std::string::npos;
+    if (CGM.getLangOpts().NoStdProtection && isInStd) {
+      /* fall through to default */
+      diag.Report(DiagID) << "Skipping" << Out.str();
+    } else {
+      diag.Report(DiagID) << "Generating" << Out.str();
+
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, 1);
+      llvm::Value *VTablePtrSrc0 =
+          Builder.CreateBitCast(This, Ty->getPointerTo());
+      llvm::Value *VTablePtrSrc1 =
+          Builder.CreateInBoundsGEP(VTablePtrSrc0, Offset);
+      llvm::Value *VTablePtrSrc2 =
+          Builder.CreateInBoundsGEP(VTablePtrSrc1, Offset);
+
+      /* use volatile loads, because compiler can't see memory failures */
+      auto VTable0 = Builder.CreateLoad(VTablePtrSrc0, true, "vtable");
+      CGM.DecorateInstruction(VTable0, CGM.getTBAAInfoForVTablePtr());
+      auto VTable1 = Builder.CreateLoad(VTablePtrSrc1, true);
+      CGM.DecorateInstruction(VTable1, CGM.getTBAAInfoForVTablePtr());
+      auto VTable2 = Builder.CreateLoad(VTablePtrSrc2, true);
+      CGM.DecorateInstruction(VTable2, CGM.getTBAAInfoForVTablePtr());
+
+      llvm::Value *eq12 = Builder.CreateICmpEQ(VTable0, VTable1, "cmp12");
+      llvm::Value *eq13 = Builder.CreateICmpEQ(VTable0, VTable2, "cmp13");
+      llvm::Value *eq23 = Builder.CreateICmpEQ(VTable1, VTable2, "cmp23");
+
+      llvm::BasicBlock *ContBlock = createBasicBlock("vtable.check.cont");
+      llvm::BasicBlock *TrapBlock = createBasicBlock("vtable.check.trap");
+      llvm::BasicBlock *IsRep3Faulty = createBasicBlock("vtable.check.test3");
+      llvm::BasicBlock *IsRep1Faulty = createBasicBlock("vtable.check.test1");
+      llvm::BasicBlock *IsRep2Faulty = createBasicBlock("vtable.check.test2");
+      llvm::BasicBlock *Repair1 = createBasicBlock("vtable.repair.1");
+      llvm::BasicBlock *Repair2 = createBasicBlock("vtable.repair.2");
+      llvm::BasicBlock *Repair3 = createBasicBlock("vtable.repair.3");
+
+      /* compare and fix, or fault if not recoverable */
+      auto no_fault = Builder.CreateAnd(eq12, eq23);
+      Builder.CreateCondBr(no_fault, ContBlock, IsRep3Faulty);
+
+      EmitBlock(TrapBlock);
+      Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+      Builder.CreateUnreachable();
+
+      EmitBlock(IsRep3Faulty);
+      Builder.CreateCondBr(eq12, Repair3, IsRep1Faulty);
+
+      EmitBlock(IsRep1Faulty);
+      Builder.CreateCondBr(eq23, Repair1, IsRep2Faulty);
+
+      EmitBlock(IsRep2Faulty);
+      Builder.CreateCondBr(eq13, Repair2, TrapBlock);
+
+      {
+        EmitBlock(Repair3);
+        auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc2);
+        CGM.DecorateInstruction(Repair, CGM.getTBAAInfoForVTablePtr());
+        EmitBranch(ContBlock);
+      }
+      {
+        EmitBlock(Repair2);
+        auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc1);
+        CGM.DecorateInstruction(Repair, CGM.getTBAAInfoForVTablePtr());
+        EmitBranch(ContBlock);
+      }
+      {
+        EmitBlock(Repair1);
+        auto Repair = Builder.CreateStore(VTable1, VTablePtrSrc0);
+        CGM.DecorateInstruction(Repair, CGM.getTBAAInfoForVTablePtr());
+        EmitBranch(ContBlock);
+      }
+
+      EmitBlock(ContBlock);
+    }
+  }
+
   llvm::Value *VTablePtrSrc = Builder.CreateBitCast(This, Ty->getPointerTo());
   llvm::Instruction *VTable = Builder.CreateLoad(VTablePtrSrc, "vtable");
   CGM.DecorateInstruction(VTable, CGM.getTBAAInfoForVTablePtr());
