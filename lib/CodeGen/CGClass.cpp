@@ -2121,7 +2121,7 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
         diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
                                  ? DiagnosticsEngine::Level::Remark
                                  : DiagnosticsEngine::Level::Ignored,
-                             "%0 check of TMR'ed VPtr in %1");
+                             "%0 check of TMR'ed VPtr in %1 in function %2");
 
     std::string TypeName;
     llvm::raw_string_ostream Out(TypeName);
@@ -2134,9 +2134,11 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
                          Out.str().find(std_struct) != std::string::npos;
     if (CGM.getLangOpts().NoStdProtection && isInStd) {
       /* fall through to default */
-      diag.Report(DiagID) << "Skipping" << Out.str();
+      diag.Report(DiagID) << "Skipping" << Out.str()
+                          << cast<const NamedDecl>(CurGD.getDecl());
     } else {
-      diag.Report(DiagID) << "Generating" << Out.str();
+      diag.Report(DiagID) << "Generating" << Out.str()
+                          << cast<const NamedDecl>(CurGD.getDecl());
 
       llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, 1);
       llvm::Value *VTablePtrSrc0 =
