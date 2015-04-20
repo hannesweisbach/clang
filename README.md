@@ -22,17 +22,14 @@ this.
 
 How to build:
 
-If you want a libcxx/libcxxabi with replicated Vptr PREFIX is a temporary
-directory otherwise, it contains the final clang
-
-```
+# If you want a libcxx/libcxxabi with replicated Vptr PREFIX is a temporary
+# directory otherwise, it contains the final clang
 export PREFIX=path/to/put/resilient/clang
-```
 
-Now build clang able to generate protected code. Use the -j flag for make as
-desired. A Debug build also works. make check-all is optional.
+# build clang able to generate protected code
 
-```
+# use -j flag for make as desired.
+# Debug build type also works.
 cmake -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
 -DCMAKE_C_COMPILER:STRING=clang \
 -DCMAKE_CXX_COMPILER:STRING=clang++ \
@@ -40,32 +37,29 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
 -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_EXAMPLES:BOOL=OFF \
 -DLLVM_INCLUDE_TESTS:BOOL=ON .. && make \
 && make check-all && make install
-```
 
-If you don't want libcxx/libcxxabi with TMR'ed Vptrs you're done. Otherwise:
-enable protection for libc++/libcxxabi in
-llvm/projects/libcxxabi/CMakeLists.txt:199 and
-llvm/projects/libcxx/CMakeLists.txt:137 by putting 
-`set(LIBCXX_COMPILE_FLAGS "-fprotect-vptr")` there and build them:
+# If you don't want libcxx/libcxxabi with TMR'ed Vptrs you're done. Otherwise:
+# enable protection for libc++/libcxxabi in
+# llvm/projects/libcxxabi/CMakeLists.txt:199 and
+# llvm/projects/libcxx/CMakeLists.txt:137 by putting 
+# set(LIBCXX_COMPILE_FLAGS "-fprotect-vptr") there and build them:
 
-Set Final install directory: 
-`export PREFIX_STDLIB=path/to/resilient/clang-stdlib` and compile:
+# Final install directory
+export PREFIX_STDLIB=path/to/resilient/clang-stdlib
 
-```
 cmake -DCMAKE_INSTALL_PREFIX:PATH=PREFIX_STDLIB \
 -DCMAKE_C_COMPILER:PATH=$PREFIX/bin/clang \
 -DCMAKE_CXX_COMPILER:PATH=$PREFIX/bin/clang++ \
 -DCMAKE_BUILD_TYPE="Release" -DLLVM_TARGETS_TO_BUILD="X86" \
 -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_EXAMPLES:BOOL=OFF \
 -DLLVM_INCLUDE_TESTS:BOOL=ON .. && make
-```
 
-You have now a resilient clang and a standard library. To have a self-hosting
-resilient clang continue on. Use `export LD_LIBRARY_PATH=$PREFIX_STDLIB/lib/`
-so that libc++/libcxxabi can be found and compile the self-hosting resilient
-compiler:
+# You have now a resilient clang and a standard library. To have a self-hosting
+# resilient clang continue on:
 
-```
+# find libc++/libcxxabi
+export LD_LIBRARY_PATH=$PREFIX_STDLIB/lib/
+
 cmake -DCMAKE_INSTALL_PREFIX:PATH=path/to/selfhosting/resilient/clang \
 -DCMAKE_CXX_FLAGS="-fprotect-vptr" \
 -DCMAKE_C_COMPILER:PATH=$PREFIX_STDLIB/bin/clang \
@@ -74,7 +68,6 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=path/to/selfhosting/resilient/clang \
 -DLLVM_ENABLE_LIBCXXABI=ON -DLLVM_ENABLE_LIBCXX=ON \
 -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_EXAMPLES:BOOL=OFF \
 -DLLVM_INCLUDE_TESTS:BOOL=ON .. && make
-```
 
 Now you have to enable -fprotect-vptr for the tests where applicable. Some
 (sanitizer) tests will fail, because their output now contains 24 Byte Vptrs
