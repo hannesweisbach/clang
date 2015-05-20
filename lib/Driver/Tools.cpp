@@ -3421,6 +3421,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_fprotect_vptr_extended))
     CmdArgs.push_back("-fprotect-vptr-extended");
 
+  if (Args.hasArg(options::OPT_frepl_return))
+    CmdArgs.push_back("-frepl-return");
+
   if (Args.hasArg(options::OPT_ftest_coverage) ||
       Args.hasArg(options::OPT_coverage))
     CmdArgs.push_back("-femit-coverage-notes");
