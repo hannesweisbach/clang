@@ -31,6 +31,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
+#include "clang/Basic/Builtins.h"
 using namespace clang;
 using namespace CodeGen;
 
@@ -178,6 +179,10 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
       delete ReturnBlock.getBlock();
     } else
       EmitBlock(ReturnBlock.getBlock());
+
+    if (CGM.getLangOpts().ReplReturn) {
+      EmitReplicateReturnEpilog();
+    }
     return llvm::DebugLoc();
   }
 
@@ -194,6 +199,11 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
       llvm::DebugLoc Loc = BI->getDebugLoc();
       Builder.SetInsertPoint(BI->getParent());
       BI->eraseFromParent();
+
+      if (CGM.getLangOpts().ReplReturn) {
+        EmitReplicateReturnEpilog();
+      }
+
       delete ReturnBlock.getBlock();
       return Loc;
     }
@@ -204,6 +214,11 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
   // region.end for now.
 
   EmitBlock(ReturnBlock.getBlock());
+
+  if (CGM.getLangOpts().ReplReturn) {
+    EmitReplicateReturnEpilog();
+  }
+
   return llvm::DebugLoc();
 }
 
@@ -783,15 +798,84 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
   // Emit a location at the end of the prologue.
   if (CGDebugInfo *DI = getDebugInfo())
     DI->EmitLocation(Builder, StartLoc);
+
+  if (CGM.getLangOpts().ReplReturn) {
+	  // Back up 2 copies of return address
+	  EnsureInsertPoint();
+	  EmitReplicateReturnProlog();
+  }
 }
 
 void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
                                        const Stmt *Body) {
   incrementProfileCounter(Body);
+
   if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body))
     EmitCompoundStmtWithoutScope(*S);
   else
     EmitStmt(Body);
+}
+
+void CodeGenFunction::EmitReplicateReturnProlog()
+{
+	auto i64ptr = llvm::PointerType::get(Builder.getInt64Ty(), 0);
+	auto level0 = llvm::ConstantInt::get(Builder.getInt32Ty(), 0);
+	auto getRetAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+
+	auto retAddrI8ptr = Builder.CreateCall(getRetAddrIntrin, level0);
+	auto retAddrI64ptr = Builder.CreatePointerCast(retAddrI8ptr, i64ptr,
+	                                               "retAddrI64ptr");
+	retAddrLoc1 = Builder.CreateAlloca(i64ptr, nullptr, "retAddrLoc1");
+	retAddrLoc2 = Builder.CreateAlloca(i64ptr, nullptr, "retAddrLoc2");
+	Builder.CreateStore(retAddrI64ptr, retAddrLoc1);
+	Builder.CreateStore(retAddrI64ptr, retAddrLoc2);
+}
+
+void CodeGenFunction::EmitReplicateReturnEpilog()
+{
+	auto i64ptr = llvm::PointerType::get(Builder.getInt64Ty(), 0);
+	auto level0 = llvm::ConstantInt::get(Builder.getInt32Ty(), 0);
+	auto getRetAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+	auto getFrameAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
+
+	auto faI8ptr = Builder.CreateCall(getFrameAddrIntrin, level0);
+	auto frameAddr = Builder.CreatePointerCast(faI8ptr, i64ptr,
+	                                           "frameAddrI64Ptr");
+
+	auto retAddrI8ptr = Builder.CreateCall(getRetAddrIntrin, level0);
+	auto retAddr3 = Builder.CreatePointerCast(retAddrI8ptr, i64ptr,
+	                                          "retAddr3");
+
+	llvm::BasicBlock* ContBlock = createBasicBlock("repl.ret.true.cont");
+	llvm::BasicBlock* Check13Fail = createBasicBlock("repl.ret.check13.fail");
+	llvm::BasicBlock* Check23Fail = createBasicBlock("repl.ret.check23.fail");
+	llvm::BasicBlock* TrapBlock = createBasicBlock("repl.ret.false.trap");
+	llvm::BasicBlock* RestoreRetAddr = createBasicBlock("repl.ret.restore");
+
+	auto retAddr1 = Builder.CreateLoad(retAddrLoc1, "retAddr1");
+	auto eq13 = Builder.CreateICmpEQ(retAddr1, retAddr3, "comp13");
+	Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
+
+	EmitBlock(TrapBlock);
+	Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+	Builder.CreateUnreachable();
+
+	EmitBlock(Check13Fail);
+	auto retAddr2 = Builder.CreateLoad(retAddrLoc2, "retAddr2");
+	auto eq23 = Builder.CreateICmpEQ(retAddr2, retAddr3, "comp23");
+	Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
+
+	EmitBlock(Check23Fail);
+	auto eq12 = Builder.CreateICmpEQ(retAddr1, retAddr2, "comp12");
+	Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
+
+	EmitBlock(RestoreRetAddr);
+	auto offsetFrameAddr = Builder.CreateGEP(frameAddr, Builder.getInt32(1),
+	                                         "fpToRetAddr");
+	auto temp = Builder.CreatePtrToInt(retAddr1, Builder.getInt64Ty());
+	Builder.CreateStore(temp, offsetFrameAddr);
+
+	EmitBlock(ContBlock);
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
