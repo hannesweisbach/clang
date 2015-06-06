@@ -546,9 +546,19 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         if (CheckMipsBuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
         break;
+      case llvm::Triple::systemz:
+        if (CheckSystemZBuiltinFunctionCall(BuiltinID, TheCall))
+          return ExprError();
+        break;
       case llvm::Triple::x86:
       case llvm::Triple::x86_64:
         if (CheckX86BuiltinFunctionCall(BuiltinID, TheCall))
+          return ExprError();
+        break;
+      case llvm::Triple::ppc:
+      case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
+        if (CheckPPCBuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
         break;
       default:
@@ -613,7 +623,10 @@ static QualType getNeonEltType(NeonTypeFlags Flags, ASTContext &Context,
   case NeonTypeFlags::Poly16:
     return IsPolyUnsigned ? Context.UnsignedShortTy : Context.ShortTy;
   case NeonTypeFlags::Poly64:
-    return Context.UnsignedLongTy;
+    if (IsInt64Long)
+      return Context.UnsignedLongTy;
+    else
+      return Context.UnsignedLongLongTy;
   case NeonTypeFlags::Poly128:
     break;
   case NeonTypeFlags::Float16:
@@ -892,6 +905,105 @@ bool Sema::CheckMipsBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case Mips::BI__builtin_mips_prepend: i = 2; l = 0; u = 31; break;
   }
 
+  return SemaBuiltinConstantArgRange(TheCall, i, l, u);
+}
+
+bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+  unsigned i = 0, l = 0, u = 0;
+  bool Is64BitBltin = BuiltinID == PPC::BI__builtin_divde ||
+                      BuiltinID == PPC::BI__builtin_divdeu ||
+                      BuiltinID == PPC::BI__builtin_bpermd;
+  bool IsTarget64Bit = Context.getTargetInfo()
+                              .getTypeWidth(Context
+                                            .getTargetInfo()
+                                            .getIntPtrType()) == 64;
+  bool IsBltinExtDiv = BuiltinID == PPC::BI__builtin_divwe ||
+                       BuiltinID == PPC::BI__builtin_divweu ||
+                       BuiltinID == PPC::BI__builtin_divde ||
+                       BuiltinID == PPC::BI__builtin_divdeu;
+
+  if (Is64BitBltin && !IsTarget64Bit)
+      return Diag(TheCall->getLocStart(), diag::err_64_bit_builtin_32_bit_tgt)
+             << TheCall->getSourceRange();
+
+  if ((IsBltinExtDiv && !Context.getTargetInfo().hasFeature("extdiv")) ||
+      (BuiltinID == PPC::BI__builtin_bpermd &&
+       !Context.getTargetInfo().hasFeature("bpermd")))
+    return Diag(TheCall->getLocStart(), diag::err_ppc_builtin_only_on_pwr7)
+           << TheCall->getSourceRange();
+
+  switch (BuiltinID) {
+  default: return false;
+  case PPC::BI__builtin_altivec_crypto_vshasigmaw:
+  case PPC::BI__builtin_altivec_crypto_vshasigmad:
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 15);
+  case PPC::BI__builtin_tbegin:
+  case PPC::BI__builtin_tend: i = 0; l = 0; u = 1; break;
+  case PPC::BI__builtin_tsr: i = 0; l = 0; u = 7; break;
+  case PPC::BI__builtin_tabortwc:
+  case PPC::BI__builtin_tabortdc: i = 0; l = 0; u = 31; break;
+  case PPC::BI__builtin_tabortwci:
+  case PPC::BI__builtin_tabortdci:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 31);
+  }
+  return SemaBuiltinConstantArgRange(TheCall, i, l, u);
+}
+
+bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
+                                           CallExpr *TheCall) {
+  if (BuiltinID == SystemZ::BI__builtin_tabort) {
+    Expr *Arg = TheCall->getArg(0);
+    llvm::APSInt AbortCode(32);
+    if (Arg->isIntegerConstantExpr(AbortCode, Context) &&
+        AbortCode.getSExtValue() >= 0 && AbortCode.getSExtValue() < 256)
+      return Diag(Arg->getLocStart(), diag::err_systemz_invalid_tabort_code)
+             << Arg->getSourceRange();
+  }
+
+  // For intrinsics which take an immediate value as part of the instruction,
+  // range check them here.
+  unsigned i = 0, l = 0, u = 0;
+  switch (BuiltinID) {
+  default: return false;
+  case SystemZ::BI__builtin_s390_lcbb: i = 1; l = 0; u = 15; break;
+  case SystemZ::BI__builtin_s390_verimb:
+  case SystemZ::BI__builtin_s390_verimh:
+  case SystemZ::BI__builtin_s390_verimf:
+  case SystemZ::BI__builtin_s390_verimg: i = 3; l = 0; u = 255; break;
+  case SystemZ::BI__builtin_s390_vfaeb:
+  case SystemZ::BI__builtin_s390_vfaeh:
+  case SystemZ::BI__builtin_s390_vfaef:
+  case SystemZ::BI__builtin_s390_vfaebs:
+  case SystemZ::BI__builtin_s390_vfaehs:
+  case SystemZ::BI__builtin_s390_vfaefs:
+  case SystemZ::BI__builtin_s390_vfaezb:
+  case SystemZ::BI__builtin_s390_vfaezh:
+  case SystemZ::BI__builtin_s390_vfaezf:
+  case SystemZ::BI__builtin_s390_vfaezbs:
+  case SystemZ::BI__builtin_s390_vfaezhs:
+  case SystemZ::BI__builtin_s390_vfaezfs: i = 2; l = 0; u = 15; break;
+  case SystemZ::BI__builtin_s390_vfidb:
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 15) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 15);
+  case SystemZ::BI__builtin_s390_vftcidb: i = 1; l = 0; u = 4095; break;
+  case SystemZ::BI__builtin_s390_vlbb: i = 1; l = 0; u = 15; break;
+  case SystemZ::BI__builtin_s390_vpdi: i = 2; l = 0; u = 15; break;
+  case SystemZ::BI__builtin_s390_vsldb: i = 2; l = 0; u = 15; break;
+  case SystemZ::BI__builtin_s390_vstrcb:
+  case SystemZ::BI__builtin_s390_vstrch:
+  case SystemZ::BI__builtin_s390_vstrcf:
+  case SystemZ::BI__builtin_s390_vstrczb:
+  case SystemZ::BI__builtin_s390_vstrczh:
+  case SystemZ::BI__builtin_s390_vstrczf:
+  case SystemZ::BI__builtin_s390_vstrcbs:
+  case SystemZ::BI__builtin_s390_vstrchs:
+  case SystemZ::BI__builtin_s390_vstrcfs:
+  case SystemZ::BI__builtin_s390_vstrczbs:
+  case SystemZ::BI__builtin_s390_vstrczhs:
+  case SystemZ::BI__builtin_s390_vstrczfs: i = 3; l = 0; u = 15; break;
+  }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
 }
 
@@ -1222,11 +1334,14 @@ bool Sema::CheckObjCMethodCall(ObjCMethodDecl *Method, SourceLocation lbrac,
 
 bool Sema::CheckPointerCall(NamedDecl *NDecl, CallExpr *TheCall,
                             const FunctionProtoType *Proto) {
-  const VarDecl *V = dyn_cast<VarDecl>(NDecl);
-  if (!V)
+  QualType Ty;
+  if (const auto *V = dyn_cast<VarDecl>(NDecl))
+    Ty = V->getType();
+  else if (const auto *F = dyn_cast<FieldDecl>(NDecl))
+    Ty = F->getType();
+  else
     return false;
 
-  QualType Ty = V->getType();
   if (!Ty->isBlockPointerType() && !Ty->isFunctionPointerType())
     return false;
 
@@ -1489,6 +1604,10 @@ ExprResult Sema::SemaAtomicOpsOverloaded(ExprResult TheCallResult,
     return ExprError();
   }
 
+  // atomic_fetch_or takes a pointer to a volatile 'A'.  We shouldn't let the
+  // volatile-ness of the pointee-type inject itself into the result or the
+  // other operands.
+  ValType.removeLocalVolatile();
   QualType ResultType = ValType;
   if (Form == Copy || Form == GNUXchg || Form == Init)
     ResultType = Context.VoidTy;
@@ -5985,7 +6104,7 @@ static void DiagnoseOutOfRangeComparison(Sema &S, BinaryOperator *E,
   // TODO: Investigate using GetExprRange() to get tighter bounds
   // on the bit ranges.
   QualType OtherT = Other->getType();
-  if (const AtomicType *AT = dyn_cast<AtomicType>(OtherT))
+  if (const auto *AT = OtherT->getAs<AtomicType>())
     OtherT = AT->getValueType();
   IntRange OtherRange = IntRange::forValueOfType(S.Context, OtherT);
   unsigned OtherWidth = OtherRange.Width;
@@ -7660,6 +7779,35 @@ void Sema::CheckBitFieldInitialization(SourceLocation InitLoc,
   (void) AnalyzeBitFieldAssignment(*this, BitField, Init, InitLoc);
 }
 
+static void diagnoseArrayStarInParamType(Sema &S, QualType PType,
+                                         SourceLocation Loc) {
+  if (!PType->isVariablyModifiedType())
+    return;
+  if (const auto *PointerTy = dyn_cast<PointerType>(PType)) {
+    diagnoseArrayStarInParamType(S, PointerTy->getPointeeType(), Loc);
+    return;
+  }
+  if (const auto *ReferenceTy = dyn_cast<ReferenceType>(PType)) {
+    diagnoseArrayStarInParamType(S, ReferenceTy->getPointeeType(), Loc);
+    return;
+  }
+  if (const auto *ParenTy = dyn_cast<ParenType>(PType)) {
+    diagnoseArrayStarInParamType(S, ParenTy->getInnerType(), Loc);
+    return;
+  }
+
+  const ArrayType *AT = S.Context.getAsArrayType(PType);
+  if (!AT)
+    return;
+
+  if (AT->getSizeModifier() != ArrayType::Star) {
+    diagnoseArrayStarInParamType(S, AT->getElementType(), Loc);
+    return;
+  }
+
+  S.Diag(Loc, diag::err_array_star_in_function_definition);
+}
+
 /// CheckParmsForFunctionDef - Check that the parameters of the given
 /// function are appropriate for the definition of a function. This
 /// takes care of any checks that cannot be performed on the
@@ -7698,15 +7846,9 @@ bool Sema::CheckParmsForFunctionDef(ParmVarDecl *const *P,
     //   notation in their sequences of declarator specifiers to specify
     //   variable length array types.
     QualType PType = Param->getOriginalType();
-    while (const ArrayType *AT = Context.getAsArrayType(PType)) {
-      if (AT->getSizeModifier() == ArrayType::Star) {
-        // FIXME: This diagnostic should point the '[*]' if source-location
-        // information is added for it.
-        Diag(Param->getLocation(), diag::err_array_star_in_function_definition);
-        break;
-      }
-      PType= AT->getElementType();
-    }
+    // FIXME: This diagnostic should point the '[*]' if source-location
+    // information is added for it.
+    diagnoseArrayStarInParamType(*this, PType, Param->getLocation());
 
     // MSVC destroys objects passed by value in the callee.  Therefore a
     // function definition which takes such a parameter must be able to call the

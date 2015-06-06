@@ -329,7 +329,7 @@ private:
   };
   std::vector<DeferredGlobal> DeferredDeclsToEmit;
   void addDeferredDeclToEmit(llvm::GlobalValue *GV, GlobalDecl GD) {
-    DeferredDeclsToEmit.push_back(DeferredGlobal(GV, GD));
+    DeferredDeclsToEmit.emplace_back(GV, GD);
   }
 
   /// List of alias we have emitted. Used to make sure that what they point to
@@ -366,7 +366,7 @@ private:
   /// Map used to get unique annotation strings.
   llvm::StringMap<llvm::Constant*> AnnotationStrings;
 
-  llvm::StringMap<llvm::Constant*> CFConstantStringMap;
+  llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
   llvm::DenseMap<const Decl*, llvm::Constant *> StaticLocalDeclMap;
@@ -400,7 +400,8 @@ private:
   /// When a C++ decl with an initializer is deferred, null is
   /// appended to CXXGlobalInits, and the index of that null is placed
   /// here so that the initializer will be performed in the correct
-  /// order.
+  /// order. Once the decl is emitted, the index is replaced with ~0U to ensure
+  /// that we don't re-emit the initializer.
   llvm::DenseMap<const Decl*, unsigned> DelayedCXXInitPosition;
   
   typedef std::pair<OrderGlobalInits, llvm::Function*> GlobalInitData;
@@ -719,8 +720,8 @@ public:
   /// Get the address of the RTTI descriptor for the given type.
   llvm::Constant *GetAddrOfRTTIDescriptor(QualType Ty, bool ForEH = false);
 
-  llvm::Constant *getAddrOfCXXHandlerMapEntry(QualType Ty,
-                                              QualType CatchHandlerType);
+  llvm::Constant *getAddrOfCXXCatchHandlerType(QualType Ty,
+                                               QualType CatchHandlerType);
 
   /// Get the address of a uuid descriptor .
   llvm::Constant *GetAddrOfUuidDescriptor(const CXXUuidofExpr* E);
@@ -786,7 +787,7 @@ public:
   /// Return a pointer to a constant NSString object for the given string. Or a
   /// user defined String object as defined via
   /// -fconstant-string-class=class_name option.
-  llvm::Constant *GetAddrOfConstantString(const StringLiteral *Literal);
+  llvm::GlobalVariable *GetAddrOfConstantString(const StringLiteral *Literal);
 
   /// Return a constant array for the given string.
   llvm::Constant *GetConstantArrayFromStringLiteral(const StringLiteral *E);
@@ -875,7 +876,7 @@ public:
 
   /// Add a destructor and object to add to the C++ global destructor function.
   void AddCXXDtorEntry(llvm::Constant *DtorFn, llvm::Constant *Object) {
-    CXXGlobalDtors.push_back(std::make_pair(DtorFn, Object));
+    CXXGlobalDtors.emplace_back(DtorFn, Object);
   }
 
   /// Create a new runtime function with the specified type and name.
@@ -1016,6 +1017,9 @@ public:
   void setFunctionLinkage(GlobalDecl GD, llvm::Function *F) {
     F->setLinkage(getFunctionLinkage(GD));
   }
+
+  /// Set the DLL storage class on F.
+  void setFunctionDLLStorageClass(GlobalDecl GD, llvm::Function *F);
 
   /// Return the appropriate linkage for the vtable, VTT, and type information
   /// of the given class.

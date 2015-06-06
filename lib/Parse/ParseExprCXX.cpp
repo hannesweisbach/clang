@@ -1096,8 +1096,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
     // MSVC-style attributes must be parsed before the mutable specifier to be
     // compatible with MSVC.
-    while (Tok.is(tok::kw___declspec))
-      ParseMicrosoftDeclSpec(Attr);
+    MaybeParseMicrosoftDeclSpecs(Attr, &DeclEndLoc);
 
     // Parse 'mutable'[opt].
     SourceLocation MutableLoc;
@@ -2535,7 +2534,7 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
       if (SS.isNotEmpty())
         ObjectType = ParsedType();
       if (Tok.isNot(tok::identifier) || NextToken().is(tok::coloncolon) ||
-          SS.isInvalid()) {
+          !SS.isSet()) {
         Diag(TildeLoc, diag::err_destructor_tilde_scope);
         return true;
       }

@@ -790,13 +790,15 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
   Record.push_back(D->getStorageClass());
   Record.push_back(D->getTSCSpec());
   Record.push_back(D->getInitStyle());
-  Record.push_back(D->isExceptionVariable());
-  Record.push_back(D->isNRVOVariable());
-  Record.push_back(D->isCXXForRangeDecl());
-  Record.push_back(D->isARCPseudoStrong());
-  Record.push_back(D->isConstexpr());
-  Record.push_back(D->isInitCapture());
-  Record.push_back(D->isPreviousDeclInSameBlockScope());
+  if (!isa<ParmVarDecl>(D)) {
+    Record.push_back(D->isExceptionVariable());
+    Record.push_back(D->isNRVOVariable());
+    Record.push_back(D->isCXXForRangeDecl());
+    Record.push_back(D->isARCPseudoStrong());
+    Record.push_back(D->isConstexpr());
+    Record.push_back(D->isInitCapture());
+    Record.push_back(D->isPreviousDeclInSameBlockScope());
+  }
   Record.push_back(D->getLinkageInternal());
 
   if (D->getInit()) {
@@ -994,13 +996,16 @@ void ASTDeclWriter::VisitNamespaceDecl(NamespaceDecl *D) {
     std::sort(LookupResults.begin(), LookupResults.end(), llvm::less_first());
     for (auto &NameAndResult : LookupResults) {
       DeclarationName Name = NameAndResult.first;
-      (void)Name;
-      assert(Name.getNameKind() != DeclarationName::CXXConstructorName &&
-             "Cannot have a constructor name in a namespace!");
-      assert(Name.getNameKind() != DeclarationName::CXXConversionFunctionName &&
-             "Cannot have a conversion function name in a namespace!");
-
       DeclContext::lookup_result Result = NameAndResult.second;
+      if (Name.getNameKind() == DeclarationName::CXXConstructorName ||
+          Name.getNameKind() == DeclarationName::CXXConversionFunctionName) {
+        // We have to work around a name lookup bug here where negative lookup
+        // results for these names get cached in namespace lookup tables.
+        assert(Result.empty() && "Cannot have a constructor or conversion "
+                                 "function name in a namespace!");
+        continue;
+      }
+
       for (NamedDecl *ND : Result)
         Writer.GetDeclRef(ND);
     }
@@ -1735,13 +1740,6 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // StorageClass
   Abv->Add(BitCodeAbbrevOp(0));                       // getTSCSpec
   Abv->Add(BitCodeAbbrevOp(0));                       // hasCXXDirectInitializer
-  Abv->Add(BitCodeAbbrevOp(0));                       // isExceptionVariable
-  Abv->Add(BitCodeAbbrevOp(0));                       // isNRVOVariable
-  Abv->Add(BitCodeAbbrevOp(0));                       // isCXXForRangeDecl
-  Abv->Add(BitCodeAbbrevOp(0));                       // isARCPseudoStrong
-  Abv->Add(BitCodeAbbrevOp(0));                       // isConstexpr
-  Abv->Add(BitCodeAbbrevOp(0));                       // isInitCapture
-  Abv->Add(BitCodeAbbrevOp(0));                       // isPrevDeclInSameScope
   Abv->Add(BitCodeAbbrevOp(0));                       // Linkage
   Abv->Add(BitCodeAbbrevOp(0));                       // HasInit
   Abv->Add(BitCodeAbbrevOp(0));                   // HasMemberSpecializationInfo
