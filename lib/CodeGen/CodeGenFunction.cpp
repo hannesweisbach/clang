@@ -31,7 +31,6 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
-#include "clang/Basic/Builtins.h"
 using namespace clang;
 using namespace CodeGen;
 
@@ -818,46 +817,34 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
 
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
-	auto i64ptr = llvm::PointerType::get(Builder.getInt64Ty(), 0);
-	auto level0 = llvm::ConstantInt::get(Builder.getInt32Ty(), 0);
-	auto getRetAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-
-	auto retAddrI8ptr = Builder.CreateCall(getRetAddrIntrin, level0);
-	auto retAddrI64ptr = Builder.CreatePointerCast(retAddrI8ptr, i64ptr,
-	                                               "retAddrI64ptr");
-	retAddrLoc1 = Builder.CreateAlloca(i64ptr, nullptr, "retAddrLoc1");
-	retAddrLoc2 = Builder.CreateAlloca(i64ptr, nullptr, "retAddrLoc2");
-	Builder.CreateStore(retAddrI64ptr, retAddrLoc1);
-	Builder.CreateStore(retAddrI64ptr, retAddrLoc2);
+	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+	auto retAddr = Builder.CreateCall(getRA, Builder.getInt32(0));
+	retAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+					   "retAddrLoc1");
+	retAddrLoc2 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+					   "retAddrLoc2");
+	Builder.CreateStore(retAddr, retAddrLoc1);
+	Builder.CreateStore(retAddr, retAddrLoc2);
 }
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
-	auto i64ptr = llvm::PointerType::get(Builder.getInt64Ty(), 0);
-	auto level0 = llvm::ConstantInt::get(Builder.getInt32Ty(), 0);
-	auto getRetAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-	auto getFrameAddrIntrin = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
+	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+	auto getFA = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
 
-	auto faI8ptr = Builder.CreateCall(getFrameAddrIntrin, level0);
-	auto frameAddr = Builder.CreatePointerCast(faI8ptr, i64ptr,
-	                                           "frameAddrI64Ptr");
+	auto ContBlock = createBasicBlock("repl.ret.true.cont");
+	auto Check13Fail = createBasicBlock("repl.ret.check13.fail");
+	auto Check23Fail = createBasicBlock("repl.ret.check23.fail");
+	auto TrapBlock = createBasicBlock("repl.ret.false.trap");
+	auto RestoreRetAddr = createBasicBlock("repl.ret.restore");
 
-	auto retAddrI8ptr = Builder.CreateCall(getRetAddrIntrin, level0);
-	auto retAddr3 = Builder.CreatePointerCast(retAddrI8ptr, i64ptr,
-	                                          "retAddr3");
-
-	llvm::BasicBlock* ContBlock = createBasicBlock("repl.ret.true.cont");
-	llvm::BasicBlock* Check13Fail = createBasicBlock("repl.ret.check13.fail");
-	llvm::BasicBlock* Check23Fail = createBasicBlock("repl.ret.check23.fail");
-	llvm::BasicBlock* TrapBlock = createBasicBlock("repl.ret.false.trap");
-	llvm::BasicBlock* RestoreRetAddr = createBasicBlock("repl.ret.restore");
-
+	auto retAddr3 = Builder.CreateCall(getRA, Builder.getInt32(0));
 	auto retAddr1 = Builder.CreateLoad(retAddrLoc1, "retAddr1");
 	auto eq13 = Builder.CreateICmpEQ(retAddr1, retAddr3, "comp13");
 	Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
 	EmitBlock(TrapBlock);
-	Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+	Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
 	Builder.CreateUnreachable();
 
 	EmitBlock(Check13Fail);
@@ -870,10 +857,14 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
 	Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
 
 	EmitBlock(RestoreRetAddr);
-	auto offsetFrameAddr = Builder.CreateGEP(frameAddr, Builder.getInt32(1),
-	                                         "fpToRetAddr");
-	auto temp = Builder.CreatePtrToInt(retAddr1, Builder.getInt64Ty());
-	Builder.CreateStore(temp, offsetFrameAddr);
+	auto frameAddr = Builder.CreateCall(getFA, Builder.getInt32(0));
+	auto ptrSize = CGM.getTarget().getPointerWidth(0) / 8;
+	auto retAddrLoc = Builder.CreateGEP(frameAddr,
+					    Builder.getInt32(ptrSize),
+					    "retAddrLocation");
+	auto i8ptrPtrTy = Builder.getInt8PtrTy()->getPointerTo();
+	retAddrLoc = Builder.CreatePointerCast(retAddrLoc, i8ptrPtrTy);
+	Builder.CreateStore(retAddr1, retAddrLoc);
 
 	EmitBlock(ContBlock);
 }
