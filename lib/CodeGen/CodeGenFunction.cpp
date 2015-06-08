@@ -830,7 +830,7 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
 	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-	auto getFA = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
+	auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
 
 	auto ContBlock = createBasicBlock("repl.ret.true.cont");
 	auto Check13Fail = createBasicBlock("repl.ret.check13.fail");
@@ -857,14 +857,7 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
 	Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
 
 	EmitBlock(RestoreRetAddr);
-	auto frameAddr = Builder.CreateCall(getFA, Builder.getInt32(0));
-	auto ptrSize = CGM.getTarget().getPointerWidth(0) / 8;
-	auto retAddrLoc = Builder.CreateGEP(frameAddr,
-					    Builder.getInt32(ptrSize),
-					    "retAddrLocation");
-	auto i8ptrPtrTy = Builder.getInt8PtrTy()->getPointerTo();
-	retAddrLoc = Builder.CreatePointerCast(retAddrLoc, i8ptrPtrTy);
-	Builder.CreateStore(retAddr1, retAddrLoc);
+	Builder.CreateCall(setRA, retAddr1);
 
 	EmitBlock(ContBlock);
 }
