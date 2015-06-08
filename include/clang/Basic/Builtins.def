@@ -1239,6 +1239,7 @@ BUILTIN(__builtin_smulll_overflow, "bSLLiCSLLiCSLLi*", "n")
 BUILTIN(__builtin_addressof, "v*v&", "nct")
 BUILTIN(__builtin_operator_new, "v*z", "c")
 BUILTIN(__builtin_operator_delete, "vv*", "n")
+BUILTIN(__builtin_set_return_address, "vv*", "n")
 
 #undef BUILTIN
 #undef LIBBUILTIN
