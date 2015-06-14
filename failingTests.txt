@@ -1,0 +1,213 @@
+Failing tests
+=============
+
+When the -frepl-return flag is used during test execution, there are 11
+additional unexpected failures. 6 of them are clang tests. However, as listed
+below, none of them should be a big issue.
+
+
+Test 1: Clang :: CodeGen/always_inline.c
+----------------------------------------
+seems ok, only the new functions/intrinsics are not inlined
+
+Test output:
+********************
+FAIL: Clang :: CodeGen/always_inline.c (3019 of 24800)
+******************** TEST 'Clang :: CodeGen/always_inline.c' FAILED ********************
+Script:
+--
+/home/user/llvm/build/./bin/clang  -emit-llvm -S -o /home/user/llvm/build/tools/clang/test/CodeGen/Output/always_inline.c.tmp /home/user/llvm/tools/clang/test/CodeGen/always_inline.c
+not grep '@f0' /home/user/llvm/build/tools/clang/test/CodeGen/Output/always_inline.c.tmp
+not grep 'call ' /home/user/llvm/build/tools/clang/test/CodeGen/Output/always_inline.c.tmp
+/home/user/llvm/build/./bin/clang  -mllvm -disable-llvm-optzns -emit-llvm -S -o /home/user/llvm/build/tools/clang/test/CodeGen/Output/always_inline.c.tmp /home/user/llvm/tools/clang/test/CodeGen/always_inline.c
+grep '@f0' /home/user/llvm/build/tools/clang/test/CodeGen/Output/always_inline.c.tmp | /home/user/llvm/build/./bin/count 2
+--
+Exit Code: 1
+
+Command Output (stdout):
+--
+  %0 = call i8* @llvm.returnaddress(i32 0)
+  %1 = call i8* @llvm.returnaddress(i32 0) #2
+  %2 = call i8* @llvm.returnaddress(i32 0) #2
+  call void @llvm.trap() #2
+  call void @llvm.setreturnaddress(i8* %retAddr1.i) #2
+  %4 = call i8* @llvm.returnaddress(i32 0)
+  call void @llvm.trap()
+  call void @llvm.setreturnaddress(i8* %retAddr1)
+  %0 = call i8* @llvm.returnaddress(i32 0)
+  %1 = call i8* @llvm.returnaddress(i32 0)
+  call void @llvm.trap()
+  call void @llvm.setreturnaddress(i8* %retAddr1)
+  %0 = call i8* @llvm.returnaddress(i32 0)
+  %1 = call i8* @llvm.returnaddress(i32 0) #2
+  %2 = call i8* @llvm.returnaddress(i32 0) #2
+  call void @llvm.trap() #2
+  call void @llvm.setreturnaddress(i8* %retAddr1.i) #2
+  %4 = call i8* @llvm.returnaddress(i32 0)
+  call void @llvm.trap()
+  call void @llvm.setreturnaddress(i8* %retAddr1)
+
+
+Test 2: Clang :: CodeGen/debug-info-file-change.c
+-------------------------------------------------
+Not sure about this one, there are additional *DILexicalBlockFile* and
+*DILocation* lines:
+!25 = !DILocation(line: 6, column: 1, scope: !20)
+!26 = !DILocation(line: 6, column: 1, scope: !27)
+!27 = !DILexicalBlockFile(scope: !20, file: !21, discriminator: 4)
+!28 = !DILocation(line: 6, column: 1, scope: !29)
+!29 = !DILexicalBlockFile(scope: !20, file: !21, discriminator: 1)
+!30 = !DILocation(line: 6, column: 1, scope: !31)
+!31 = !DILexicalBlockFile(scope: !20, file: !21, discriminator: 2)
+!32 = !DILocation(line: 6, column: 1, scope: !33)
+!33 = !DILexicalBlockFile(scope: !20, file: !21, discriminator: 3)
+
+However, the test failure is due to the fact that *CHECK-NOT DILexicalBlock*
+also matches DILexicalBlockFile.
+
+Test output:
+********************
+FAIL: Clang :: CodeGen/debug-info-file-change.c (3267 of 24800)
+******************** TEST 'Clang :: CodeGen/debug-info-file-change.c' FAILED ********************
+Script:
+--
+/home/user/llvm/build/./bin/clang  -emit-llvm -S -g /home/user/llvm/tools/clang/test/CodeGen/debug-info-file-change.c -o - | /home/user/llvm/build/./bin/FileCheck /home/user/llvm/tools/clang/test/CodeGen/debug-info-file-change.c
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+<stdin>:99:7: error: CHECK-NOT: string occurred!
+!27 = !DILexicalBlockFile(scope: !20, file: !21, discriminator: 4)
+      ^
+/home/user/llvm/tools/clang/test/CodeGen/debug-info-file-change.c:22:15: note: CHECK-NOT: pattern specified here
+// CHECK-NOT: !DILexicalBlock
+              ^
+
+Test 3: Clang :: CodeGen/decl-in-prototype.c
+--------------------------------------------
+seems ok, return value is stored and reloaded instead of used directly.
+
+Test output:
+********************
+FAIL: Clang :: CodeGen/decl-in-prototype.c (3285 of 24800)
+******************** TEST 'Clang :: CodeGen/decl-in-prototype.c' FAILED ********************
+Script:
+--
+/home/user/llvm/build/./bin/clang  -target i386-unknown-unknown -emit-llvm -S -o - /home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c | /home/user/llvm/build/./bin/FileCheck /home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+/home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:6:8: warning: declaration of 'enum (anonymous at /home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:6:8)' will not be visible outside of this function [-Wvisibility]
+int f1(enum {AA,BB} E) {
+       ^
+/home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:12:8: warning: declaration of 'enum (anonymous at /home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:12:8)' will not be visible outside of this function [-Wvisibility]
+int f2(enum {AA=7,BB} E) {
+       ^
+/home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:18:20: warning: declaration of 'enum (anonymous at /home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:18:20)' will not be visible outside of this function [-Wvisibility]
+int f(void (*g)(), enum {AA,BB} h) {
+                   ^
+3 warnings generated.
+/home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:7:12: error: expected string not found in input
+ // CHECK: ret i32 1
+           ^
+<stdin>:8:15: note: scanning from here
+define i32 @f1(i32 %E) #0 {
+              ^
+<stdin>:43:2: note: possible intended match here
+ ret i32 %2
+ ^
+/home/user/llvm/tools/clang/test/CodeGen/decl-in-prototype.c:13:12: error: expected string not found in input
+ // CHECK: ret i32 7
+           ^
+<stdin>:56:15: note: scanning from here
+define i32 @f2(i32 %E) #0 {
+              ^
+<stdin>:91:2: note: possible intended match here
+ ret i32 %2
+ ^
+
+
+Test 4: Clang :: CodeGen/mips-contraints-mem.c
+----------------------------------------------
+seems ok. There is just an additional *srcloc*
+(srcloc is sometimes neccessary for better error messages, maybe clang added it
+because of the additional code introduced by -frepl-return)
+
+Test output:
+********************
+FAIL: Clang :: CodeGen/mips-constraints-mem.c (3401 of 24800)
+******************** TEST 'Clang :: CodeGen/mips-constraints-mem.c' FAILED ********************
+Script:
+--
+/home/user/llvm/build/./bin/clang  -target mipsel-unknown-linux -S -o - -emit-llvm /home/user/llvm/tools/clang/test/CodeGen/mips-constraints-mem.c  | /home/user/llvm/build/./bin/FileCheck /home/user/llvm/tools/clang/test/CodeGen/mips-constraints-mem.c
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+/home/user/llvm/tools/clang/test/CodeGen/mips-constraints-mem.c:12:12: error: expected string not found in input
+ // CHECK: %{{[0-9]+}
+  } = call i32 asm sideeffect "lwl $0, 1 + $1\0A\09lwr $0, 2 + $1\0A\09", "=r,*R,~{$1}"(i32* %{{[0-9,a-f]+}}) #1,
+           ^
+<stdin>:1:1: note: scanning from here
+; ModuleID = '/home/user/llvm/tools/clang/test/CodeGen/mips-constraints-mem.c'
+^
+<stdin>:21:2: note: possible intended match here
+ %2 = call i32 asm sideeffect "lwl $0, 1 + $1\0A\09lwr $0, 2 + $1\0A\09", "=r,*R,~{$1}"(i32* %1) #2, !srcloc !1
+ ^
+
+
+Test 5: Clang :: CodeGen/mips-inline-asm-modifies.c
+---------------------------------------------------
+seems ok. There is just an additional *srcloc* (and a different nummeration)
+(srcloc is sometimes neccessary for better error messages, maybe clang added it
+because of the additional code introduced by -frepl-return)
+
+Test output:
+********************
+FAIL: Clang :: CodeGen/mips-inline-asm-modifiers.c (3405 of 24800)
+******************** TEST 'Clang :: CodeGen/mips-inline-asm-modifiers.c' FAILED ********************
+Script:
+--
+/home/user/llvm/build/./bin/clang  -target mipsel-unknown-linux -S -o - -emit-llvm /home/user/llvm/tools/clang/test/CodeGen/mips-inline-asm-modifiers.c  | /home/user/llvm/build/./bin/FileCheck /home/user/llvm/tools/clang/test/CodeGen/mips-inline-asm-modifiers.c
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+/home/user/llvm/tools/clang/test/CodeGen/mips-inline-asm-modifiers.c:10:12: error: expected string not found in input
+ // CHECK: %{{[0-9]+}} = call i32 asm ".set noreorder;\0Alw $0,$1;\0A.set reorder;\0A", "=r,*m,~{$1}"(i32* getelementptr inbounds ([8 x i32], [8 x i32]* @b, i32 {{[0-9]+}}, i32 {{[0-9]+}})) #2,
+           ^
+<stdin>:1:1: note: scanning from here
+; ModuleID = '/home/user/llvm/tools/clang/test/CodeGen/mips-inline-asm-modifiers.c'
+^
+
+
+Test 6: Clang :: Profile/func-entry.c
+---------------------------------------------------
+seems ok. There is just different numeration
+
+Test output:
+********************
+FAIL: Clang :: Profile/func-entry.c (6581 of 24800)
+******************** TEST 'Clang :: Profile/func-entry.c' FAILED ********************
+Script:
+--
+llvm-profdata merge /home/user/llvm/tools/clang/test/Profile/Inputs/func-entry.proftext -o /home/user/llvm/build/tools/clang/test/Profile/Output/func-entry.c.tmp.profdata
+/home/user/llvm/build/./bin/clang  /home/user/llvm/tools/clang/test/Profile/func-entry.c -o - -mllvm -disable-llvm-optzns -emit-llvm -S -fprofile-instr-use=/home/user/llvm/build/tools/clang/test/Profile/Output/func-entry.c.tmp.profdata | /home/user/llvm/build/./bin/FileCheck /home/user/llvm/tools/clang/test/Profile/func-entry.c
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+/home/user/llvm/tools/clang/test/Profile/func-entry.c:11:11: error: expected string not found in input
+// CHECK: @main() #1 !prof [[MAIN:![0-9]+]]
+          ^
+<stdin>:6:32: note: scanning from here
+define void @foo() #0 !prof !1 {
+                               ^
+<stdin>:49:12: note: possible intended match here
+define i32 @main() #4 !prof !2 {
