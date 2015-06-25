@@ -912,6 +912,8 @@ def frepl_return : Flag<["-"], "frepl-return">, Group<f_Group>, Flags<[CC1Option
   HelpText<"Turn on TMR-protection for the return address">;
 def frepl_return_dbg : Flag<["-"], "frepl-return-dbg">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Turn on TMR-protection for the return address and insert int3 instruction for debugging">;
+def frepl_parm : Flag<["-"], "frepl-parm">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Turn on TMR-protection for function parameters">;
 def frtti : Flag<["-"], "frtti">, Group<f_Group>;
 def : Flag<["-"], "fsched-interblock">, Group<clang_ignored_f_Group>;
 def fshort_enums : Flag<["-"], "fshort-enums">, Group<f_Group>, Flags<[CC1Option]>,

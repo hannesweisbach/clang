@@ -3430,6 +3430,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-frepl-return-dbg");
   }
 
+  if (Args.hasArg(options::OPT_frepl_parm))
+      CmdArgs.push_back("-frepl-parm");
+
   if (Args.hasArg(options::OPT_ftest_coverage) ||
       Args.hasArg(options::OPT_coverage))
     CmdArgs.push_back("-femit-coverage-notes");

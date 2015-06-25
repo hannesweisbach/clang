@@ -1593,6 +1593,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.GNUAsm = !Args.hasArg(OPT_fno_gnu_inline_asm);
   Opts.ReplReturn = Args.hasArg(OPT_frepl_return);
   Opts.ReplReturnDbg = Args.hasArg(OPT_frepl_return_dbg);
+  Opts.ReplParm = Args.hasArg(OPT_frepl_parm);
 
   Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
   Opts.ProtectVptr = Args.hasArg(OPT_fprotect_vptr);
