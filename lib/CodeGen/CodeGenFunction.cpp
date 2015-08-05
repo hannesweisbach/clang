@@ -794,6 +794,61 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
     EmitStmt(Body);
 }
 
+void CodeGenFunction::EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *Val)
+{
+  const ValueDecl *VD = E->getDecl();
+  llvm::Value *Ptr = LocalDeclMap.lookup(VD);
+  assert(Val && "DeclRefExpr not entered in LocalDeclMap?");
+
+  if (cast<llvm::PointerType>(Ptr->getType())->getElementType()->isPointerTy())
+  {
+    assert(ParmDeclMap.size() && "Pointer parameter not entered in ParmDeclMap?");
+
+    auto ContBlock = createBasicBlock("repl.parm.true.cont");
+    auto Check13Fail = createBasicBlock("repl.parm.check13.fail");
+    auto Check23Fail = createBasicBlock("repl.parm.check23.fail");
+    auto TrapBlock = createBasicBlock("repl.parm.false.trap");
+    auto RestoreParm = createBasicBlock("repl.parm.restore");
+
+    auto replParm1 = Builder.CreateLoad(ParmDeclMap[VD].first, "replParm1");
+    auto eq13 = Builder.CreateICmpEQ(Val, replParm1, "comp13");
+    Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
+
+    EmitBlock(TrapBlock);
+    Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
+    Builder.CreateUnreachable();
+
+    EmitBlock(Check13Fail);
+    auto replParm2 = Builder.CreateLoad(ParmDeclMap[VD].second, "replParm2");
+    auto eq23 = Builder.CreateICmpEQ(Val, replParm2, "comp23");
+    Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
+
+    EmitBlock(Check23Fail);
+    auto eq12 = Builder.CreateICmpEQ(replParm1, replParm2, "comp12");
+    Builder.CreateCondBr(eq12, RestoreParm, TrapBlock);
+
+    EmitBlock(RestoreParm);
+    Builder.CreateStore(replParm1, Ptr);
+
+    EmitBlock(ContBlock);
+  }
+}
+
+void CodeGenFunction::EmitPointerParmReplicaUpdate(DeclRefExpr *E, RValue src, LValue dst)
+{
+  const ValueDecl *VD = E->getDecl();
+  llvm::Value *Ptr = LocalDeclMap.lookup(VD);
+
+  if (cast<llvm::PointerType>(Ptr->getType())->getElementType()->isPointerTy())
+  {
+    assert(ParmDeclMap.size() && "Pointer parameter not entered in ParmDeclMap?");
+    dst.setAddress(ParmDeclMap[VD].first);
+    EmitStoreThroughLValue(src, dst);
+    dst.setAddress(ParmDeclMap[VD].second);
+    EmitStoreThroughLValue(src, dst);
+  }
+}
+
 /// When instrumenting to collect profile data, the counts for some blocks
 /// such as switch cases need to not include the fall-through counts, so
 /// emit a branch around the instrumentation code. When not instrumenting,

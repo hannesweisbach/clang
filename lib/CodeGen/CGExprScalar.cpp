@@ -269,7 +269,14 @@ public:
                                 E->getExprLoc());
       return result.getValue();
     }
-    return EmitLoadOfLValue(E);
+    Value *Val = EmitLoadOfLValue(E);
+    if (CGF.getLangOpts().ReplParm && isa<ParmVarDecl>(E->getDecl()))
+    {
+      CGF.EmitPointerParmReplicaCheck(E, Val);
+      return EmitLoadOfLValue(E);
+    }
+    else
+      return Val;
   }
 
   Value *VisitObjCSelectorExpr(ObjCSelectorExpr *E) {
@@ -1856,7 +1863,13 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   if (LV.isBitField())
     CGF.EmitStoreThroughBitfieldLValue(RValue::get(value), LV, &value);
   else
+  {
     CGF.EmitStoreThroughLValue(RValue::get(value), LV);
+
+    DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getSubExpr());
+    if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
+      CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(value), LV);
+  }
 
   // If this is a postinc, return the value read from memory, otherwise use the
   // updated value.
@@ -2202,7 +2215,13 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   if (LHSLV.isBitField())
     CGF.EmitStoreThroughBitfieldLValue(RValue::get(Result), LHSLV, &Result);
   else
+  {
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
+
+    DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
+    if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
+        CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(Result), LHSLV);
+  }
 
   return LHSLV;
 }
@@ -3012,7 +3031,13 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     if (LHS.isBitField())
       CGF.EmitStoreThroughBitfieldLValue(RValue::get(RHS), LHS, &RHS);
     else
+    {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
+
+      DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
+      if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
+        CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(RHS), LHS);
+    }
   }
 
   // If the result is clearly ignored, return now.
