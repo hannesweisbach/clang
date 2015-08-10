@@ -1041,7 +1041,11 @@ RecordLayoutBuilder::LayoutNonVirtualBases(const CXXRecordDecl *RD) {
       } else {
         diag.Report(DiagID) << "Reserving" << RD;
         // TODO: DMR
-        PtrWidth = PtrWidth * 3;
+        const size_t replicas = 3;
+        const size_t space =
+            replicas +
+            (Context.getLangOpts().ProtectVptrExtended ? replicas - 1 : 0);
+        PtrWidth = PtrWidth * space;
       }
     }
 
