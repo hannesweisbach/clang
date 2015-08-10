@@ -1042,6 +1042,9 @@ def fno_std_protection : Flag<["-"], "fno-std-protection">,
 def fprotect_vptr : Flag<["-"], "fprotect-vptr">,
                     Flags<[CC1Option]>,
                     HelpText<"Protect the vptr using TMR">;
+def fprotect_vptr_extended : Flag<["-"], "fprotect-vptr-extended">,
+                             Flags<[CC1Option]>,
+                             HelpText<"Space vptr replicas 1 word apart">;
 
 def funique_section_names : Flag <["-"], "funique-section-names">,
   Group<f_Group>, Flags<[CC1Option]>,
