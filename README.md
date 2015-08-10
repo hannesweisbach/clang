@@ -20,6 +20,13 @@ To entirely protect an application, a standard library compiled with
 TMR-protected Vptrs has to be used. libcxx and libcxxabi have been used for
 this.
 
+The 'normal' TMRed Vptrs are stored consecutively in memory. This has the
+disadvantage that a single misplace (unaligned) write larger than one byte can
+destroy two copies. To protect against unaligned writes, a word is reserved
+between any two Vptr copies. This ensures, that even unaligned writes of up to
+word size do not compromise more than one Vptr replica. This 'extended'
+protection is selected with the `-fprotect-vptr-extened' flag.
+
 How to build:
 
 If you want a libcxx/libcxxabi with replicated Vptr PREFIX is a temporary
