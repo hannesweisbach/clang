@@ -2629,6 +2629,10 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
       diag.Report(DiagID) << "Initialisation" << Ty->getTypeClassName();
       Fields.push_back(VTable);
       Fields.push_back(VTable);
+      if (CGM.getLangOpts().ProtectVptrExtended) {
+        Fields.push_back(VTable);
+        Fields.push_back(VTable);
+      }
     }
   }
 }

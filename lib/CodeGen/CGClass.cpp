@@ -2033,7 +2033,8 @@ CodeGenFunction::InitializeVTablePointer(BaseSubobject Base,
     } else {
       diag.Report(DiagID) << "Initialisation" << Out.str();
 
-      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, 1);
+      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
 
       VTableField = Builder.CreateInBoundsGEP(VTableField, Offset, "VTable1");
       Store = Builder.CreateStore(VTableAddressPoint, VTableField);
@@ -2150,7 +2151,8 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
       diag.Report(DiagID) << "Generating" << Out.str()
                           << cast<const NamedDecl>(CurGD.getDecl());
 
-      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, 1);
+      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
       llvm::Value *VTablePtrSrc0 =
           Builder.CreateBitCast(This, Ty->getPointerTo());
       llvm::Value *VTablePtrSrc1 =
