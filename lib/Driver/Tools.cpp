@@ -3429,6 +3429,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fverbose-fault-tolerance");
   if (Args.hasArg(options::OPT_fprotect_vptr))
     CmdArgs.push_back("-fprotect-vptr");
+  if (Args.hasArg(options::OPT_fprotect_vptr_extended))
+    CmdArgs.push_back("-fprotect-vptr-extended");
 
   if (Args.hasArg(options::OPT_ftest_coverage) ||
       Args.hasArg(options::OPT_coverage))

@@ -1582,6 +1582,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
   Opts.ProtectVptr = Args.hasArg(OPT_fprotect_vptr);
+  Opts.ProtectVptrExtended = Args.hasArg(OPT_fprotect_vptr_extended);
   Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
 
   if (!Opts.CurrentModule.empty() && !Opts.ImplementationOfModule.empty() &&
