@@ -8,13 +8,13 @@ detected. If no two Vptr replicas are equal, the program is terminated via a
 trap.  Please note that, since Vptr TMR changes the layout of objects, it is
 not ABI-compatible with object code compiled without Vptr replication.
 
-To enable generation of TMR-protected Vptrs, the flag -fprotect-vptr has to be
-passed. To be compatible to a non-TMR-protected standard library, the flag
--fno-std-protection can be used to disable generation of a replication Vptr for
-everyting in namespace ::std and below.
-Verbose output can be enabled with -fverbose-fault-tolerance. This lists all
-virtual classes for which Vptr replication is enabled and those for which it is
-disabled (if -fno-std-protection is used).
+To enable generation of TMR-protected Vptrs, the flag `-fprotect-vptr` has to
+be passed. To be compatible to a non-TMR-protected standard library, the flag
+`-fno-std-protection` can be used to disable generation of a replication Vptr
+for everyting in namespace ::std and below.  Verbose output can be enabled with
+`-fverbose-fault-tolerance`. This lists all virtual classes for which Vptr
+replication is enabled and those for which it is disabled (if
+`-fno-std-protection` is used).
 
 To entirely protect an application, a standard library compiled with
 TMR-protected Vptrs has to be used. libcxx and libcxxabi have been used for
