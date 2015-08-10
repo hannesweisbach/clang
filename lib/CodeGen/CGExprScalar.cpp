@@ -270,7 +270,8 @@ public:
       return result.getValue();
     }
     Value *Val = EmitLoadOfLValue(E);
-    if (CGF.getLangOpts().ReplParm && isa<ParmVarDecl>(E->getDecl()))
+    if (CGF.getLangOpts().ReplParm && isa<ParmVarDecl>(E->getDecl()) &&
+        Val->getType()->isPointerTy())
     {
       CGF.EmitPointerParmReplicaCheck(E, Val);
       return EmitLoadOfLValue(E);
@@ -1867,7 +1868,10 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     CGF.EmitStoreThroughLValue(RValue::get(value), LV);
 
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getSubExpr());
-    if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
+    if(CGF.getLangOpts().ReplParm &&
+       exp && isa<ParmVarDecl>(exp->getDecl()) &&
+       cast<llvm::PointerType>(LV.getAddress()->getType())
+         ->getElementType()->isPointerTy())
       CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(value), LV);
   }
 
@@ -2219,8 +2223,11 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
 
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
-    if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
-        CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(Result), LHSLV);
+    if(CGF.getLangOpts().ReplParm &&
+       exp && isa<ParmVarDecl>(exp->getDecl()) &&
+       cast<llvm::PointerType>(LHSLV.getAddress()->getType())
+         ->getElementType()->isPointerTy())
+      CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(Result), LHSLV);
   }
 
   return LHSLV;
@@ -3035,7 +3042,10 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
 
       DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
-      if(CGF.getLangOpts().ReplParm && exp && isa<ParmVarDecl>(exp->getDecl()))
+      if(CGF.getLangOpts().ReplParm &&
+         exp && isa<ParmVarDecl>(exp->getDecl()) &&
+         cast<llvm::PointerType>(LHS.getAddress()->getType())
+           ->getElementType()->isPointerTy())
         CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(RHS), LHS);
     }
   }
