@@ -14,6 +14,11 @@ Check the *README.md* files in each feature branch for more details.
 *NOTE* Use the corresponding branches in the llvm and clang source trees.
 If no branch with the same name exists, use the master branch.
 
+Links to llvm and clang repos:
+- llvm: <https://github.com/abred/llvm>
+- clang: <https://github.com/hannesweisbach/clang>
+- compiler-rt: <https://github.com/llvm-mirror/compiler-rt> (unmodified)
+
 Dynamic dispatch protection
 ---------------------------
 On the tmr-vptr branch dynamic dispatch protection is implemented. The Vptr of
