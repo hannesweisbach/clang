@@ -902,6 +902,30 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *V
   llvm::Value *Ptr = LocalDeclMap.lookup(VD);
   assert(Ptr && "DeclRefExpr not entered in LocalDeclMap?");
 
+  llvm::FunctionType *dbgFuncTy =
+    llvm::FunctionType::get(Builder.getVoidTy(),
+                            {}, false);
+  std::string asmTrap =
+    "int3;"
+    "jmp 1f;"
+    ".ascii \"Invalid value for function parameter, aborting...\";"
+    "1:";
+  llvm::InlineAsm *funcTrap =
+    llvm::InlineAsm::get(dbgFuncTy, asmTrap, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  std::string asmRestore =
+    "int3;"
+    "nop;"
+    "jmp 1f;"
+    ".ascii \"Invalid value for function parameter, restoring...\";"
+    "1:";
+  llvm::InlineAsm *funcRestore =
+    llvm::InlineAsm::get(dbgFuncTy, asmRestore, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
   auto ContBlock = createBasicBlock("repl.parm.true.cont");
   auto Check13Fail = createBasicBlock("repl.parm.check13.fail");
   auto Check23Fail = createBasicBlock("repl.parm.check23.fail");
@@ -913,6 +937,8 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *V
   Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
   EmitBlock(TrapBlock);
+  if (CGM.getLangOpts().ReplParmDbg)
+    Builder.CreateCall(funcTrap, {});
   Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
   Builder.CreateUnreachable();
 
@@ -926,6 +952,8 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *V
   Builder.CreateCondBr(eq12, RestoreParm, TrapBlock);
 
   EmitBlock(RestoreParm);
+  if (CGM.getLangOpts().ReplParmDbg)
+    Builder.CreateCall(funcRestore, {});
   Builder.CreateStore(replParm1, Ptr);
 
   EmitBlock(ContBlock);

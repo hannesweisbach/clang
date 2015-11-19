@@ -1594,6 +1594,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.ReplReturn = Args.hasArg(OPT_frepl_return);
   Opts.ReplReturnDbg = Args.hasArg(OPT_frepl_return_dbg);
   Opts.ReplParm = Args.hasArg(OPT_frepl_parm);
+  Opts.ReplParmDbg = Args.hasArg(OPT_frepl_parm_dbg);
 
   Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
   Opts.ProtectVptr = Args.hasArg(OPT_fprotect_vptr);
