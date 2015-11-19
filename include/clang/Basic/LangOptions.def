@@ -228,6 +228,7 @@ LANGOPT(SanitizeAddressFieldPadding, 2, 0, "controls how aggressive is ASan "
                                            "field padding (0: none, 1:least "
                                            "aggressive, 2: more aggressive)")
 COMPATIBLE_LANGOPT(ReplReturn, 1, 0, "TMR-protect the return address")
+COMPATIBLE_LANGOPT(ReplReturnDbg, 1, 0, "TMR-protect the return address, inserts int3 instruction for debugging")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

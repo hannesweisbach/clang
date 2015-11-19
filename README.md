@@ -46,6 +46,9 @@ can be used to access this intrinsic directly in C code.
 To enable the generation of TMR-protected return addresses, the flag
 **-frepl-return** has to be passed to clang. As all changes are inside of
 functions, code generated using it is binary compatible to other code.
+**-frepl-return-dbg** can be used for debugging purposes. In this case a trap
+(int3) is inserted both if the program has to be terminated and if a correct
+value could be restored.
 
 *NOTE*: Currently the llvm.setreturnaddress intrinsic is only implemented for
  X86-based systems
