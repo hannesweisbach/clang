@@ -818,13 +818,15 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
 	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-	auto retAddr = Builder.CreateCall(getRA, Builder.getInt32(0));
+	auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
 	retAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
-					   "retAddrLoc1");
+	                                   "retAddrLoc1");
+	Builder.CreateStore(retAddr1, retAddrLoc1);
+
+	auto retAddr2 = Builder.CreateCall(getRA, Builder.getInt32(0));
 	retAddrLoc2 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
-					   "retAddrLoc2");
-	Builder.CreateStore(retAddr, retAddrLoc1);
-	Builder.CreateStore(retAddr, retAddrLoc2);
+	                                   "retAddrLoc2");
+	Builder.CreateStore(retAddr2, retAddrLoc2);
 }
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
