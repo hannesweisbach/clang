@@ -910,6 +910,8 @@ def freg_struct_return : Flag<["-"], "freg-struct-return">, Group<f_Group>, Flag
   HelpText<"Override the default ABI to return small structs in registers">;
 def frepl_return : Flag<["-"], "frepl-return">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Turn on TMR-protection for the return address">;
+def frepl_return_dbg : Flag<["-"], "frepl-return-dbg">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Turn on TMR-protection for the return address and insert int3 instruction for debugging">;
 def frtti : Flag<["-"], "frtti">, Group<f_Group>;
 def : Flag<["-"], "fsched-interblock">, Group<clang_ignored_f_Group>;
 def fshort_enums : Flag<["-"], "fshort-enums">, Group<f_Group>, Flags<[CC1Option]>,

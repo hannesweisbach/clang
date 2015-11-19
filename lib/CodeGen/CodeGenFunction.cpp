@@ -28,6 +28,7 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
@@ -834,6 +835,31 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
 
+  llvm::FunctionType *dbgFuncTy =
+    llvm::FunctionType::get(Builder.getVoidTy(),
+                            {}, false);
+  std::string asmTrap =
+    "int3;"
+    "jmp 1f;"
+    ".ascii \"Invalid return address, aborting...\";"
+    "1:";
+  llvm::InlineAsm *funcTrap =
+    llvm::InlineAsm::get(dbgFuncTy, asmTrap, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  std::string asmRestore =
+    "int3;"
+    "nop;"
+    "jmp 1f;"
+    ".ascii \"Invalid return address, restoring...\";"
+    "1:";
+  llvm::InlineAsm *funcRestore =
+    llvm::InlineAsm::get(dbgFuncTy, asmRestore, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+
   auto ContBlock = createBasicBlock("repl.ret.true.cont");
   auto Check13Fail = createBasicBlock("repl.ret.check13.fail");
   auto Check23Fail = createBasicBlock("repl.ret.check23.fail");
@@ -846,6 +872,8 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
   Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
   EmitBlock(TrapBlock);
+  if (CGM.getLangOpts().ReplReturnDbg)
+    Builder.CreateCall(funcTrap, {});
   Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
   Builder.CreateUnreachable();
 
@@ -859,6 +887,8 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
   Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
 
   EmitBlock(RestoreRetAddr);
+  if (CGM.getLangOpts().ReplReturnDbg)
+    Builder.CreateCall(funcRestore, {});
   Builder.CreateCall(setRA, retAddr1);
 
   EmitBlock(ContBlock);
