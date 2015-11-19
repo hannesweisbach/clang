@@ -799,9 +799,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
     DI->EmitLocation(Builder, StartLoc);
 
   if (CGM.getLangOpts().ReplReturn) {
-	  // Back up 2 copies of return address
-	  EnsureInsertPoint();
-	  EmitReplicateReturnProlog();
+    // Back up 2 copies of return address
+    EnsureInsertPoint();
+    EmitReplicateReturnProlog();
   }
 }
 
@@ -817,51 +817,51 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
 
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
-	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-	auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
-	retAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
-	                                   "retAddrLoc1");
-	Builder.CreateStore(retAddr1, retAddrLoc1);
+  auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+  auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  retAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+                                     "retAddrLoc1");
+  Builder.CreateStore(retAddr1, retAddrLoc1);
 
-	auto retAddr2 = Builder.CreateCall(getRA, Builder.getInt32(0));
-	retAddrLoc2 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
-	                                   "retAddrLoc2");
-	Builder.CreateStore(retAddr2, retAddrLoc2);
+  auto retAddr2 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  retAddrLoc2 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+                                     "retAddrLoc2");
+  Builder.CreateStore(retAddr2, retAddrLoc2);
 }
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
-	auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-	auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
+  auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+  auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
 
-	auto ContBlock = createBasicBlock("repl.ret.true.cont");
-	auto Check13Fail = createBasicBlock("repl.ret.check13.fail");
-	auto Check23Fail = createBasicBlock("repl.ret.check23.fail");
-	auto TrapBlock = createBasicBlock("repl.ret.false.trap");
-	auto RestoreRetAddr = createBasicBlock("repl.ret.restore");
+  auto ContBlock = createBasicBlock("repl.ret.true.cont");
+  auto Check13Fail = createBasicBlock("repl.ret.check13.fail");
+  auto Check23Fail = createBasicBlock("repl.ret.check23.fail");
+  auto TrapBlock = createBasicBlock("repl.ret.false.trap");
+  auto RestoreRetAddr = createBasicBlock("repl.ret.restore");
 
-	auto retAddr3 = Builder.CreateCall(getRA, Builder.getInt32(0));
-	auto retAddr1 = Builder.CreateLoad(retAddrLoc1, "retAddr1");
-	auto eq13 = Builder.CreateICmpEQ(retAddr1, retAddr3, "comp13");
-	Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
+  auto retAddr3 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  auto retAddr1 = Builder.CreateLoad(retAddrLoc1, "retAddr1");
+  auto eq13 = Builder.CreateICmpEQ(retAddr1, retAddr3, "comp13");
+  Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
-	EmitBlock(TrapBlock);
-	Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
-	Builder.CreateUnreachable();
+  EmitBlock(TrapBlock);
+  Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
+  Builder.CreateUnreachable();
 
-	EmitBlock(Check13Fail);
-	auto retAddr2 = Builder.CreateLoad(retAddrLoc2, "retAddr2");
-	auto eq23 = Builder.CreateICmpEQ(retAddr2, retAddr3, "comp23");
-	Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
+  EmitBlock(Check13Fail);
+  auto retAddr2 = Builder.CreateLoad(retAddrLoc2, "retAddr2");
+  auto eq23 = Builder.CreateICmpEQ(retAddr2, retAddr3, "comp23");
+  Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
 
-	EmitBlock(Check23Fail);
-	auto eq12 = Builder.CreateICmpEQ(retAddr1, retAddr2, "comp12");
-	Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
+  EmitBlock(Check23Fail);
+  auto eq12 = Builder.CreateICmpEQ(retAddr1, retAddr2, "comp12");
+  Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
 
-	EmitBlock(RestoreRetAddr);
-	Builder.CreateCall(setRA, retAddr1);
+  EmitBlock(RestoreRetAddr);
+  Builder.CreateCall(setRA, retAddr1);
 
-	EmitBlock(ContBlock);
+  EmitBlock(ContBlock);
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
