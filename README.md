@@ -38,3 +38,6 @@ To enable generation of TMR-protected function parameters, the flag
 **-frepl-parm** has to be passed to clang. As all changes are inside
 of functions code generated using this protection is binary
 compatible to other code.
+**-frepl-parm-dbg** can be used for debugging purposes. In this case a trap
+(int3) is inserted both if the program has to be terminated and if a correct
+value could be restored.
