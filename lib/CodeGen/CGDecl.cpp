@@ -1787,10 +1787,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
 
   // Store the initial value into the alloca.
   if (DoStore) {
-    EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
-
     llvm::Type *llvmTy = ConvertTypeForMem(Ty);
     if (getLangOpts().ReplParm && llvmTy->isPointerTy() && !ArgIsPointer) {
+      EmitStoreOfScalar(Arg, lv, true, true);
+
       llvm::AllocaInst *ptr1 = CreateTempAlloca(llvmTy,
                                                 D.getName() + ".addrrepl1");
       ptr1->setAlignment(Align.getQuantity());
@@ -1798,12 +1798,14 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
                                                 D.getName() + ".addrrepl2");
       ptr2->setAlignment(Align.getQuantity());
       LValue repl1 = MakeAddrLValue(ptr1, Ty, Align);
-      EmitStoreOfScalar(Arg, repl1, true);
+      EmitStoreOfScalar(Arg, repl1, true, true);
       LValue repl2 = MakeAddrLValue(ptr2, Ty, Align);
-      EmitStoreOfScalar(Arg, repl2, true);
+      EmitStoreOfScalar(Arg, repl2, true, true);
 
       ParmDeclMap[&D] = std::make_pair(ptr1, ptr2);
     }
+    else
+      EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
   }
 
   llvm::Value *&DMEntry = LocalDeclMap[&D];

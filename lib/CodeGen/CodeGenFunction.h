@@ -2320,6 +2320,7 @@ public:
   /// l-value.  The isInit flag indicates whether this is an initialization.
   /// If so, atomic qualifiers are ignored and the store is always non-atomic.
   void EmitStoreOfScalar(llvm::Value *value, LValue lvalue, bool isInit=false);
+  void EmitStoreOfScalar(llvm::Value *value, LValue lvalue, bool isInit, bool isVolatile);
 
   /// EmitLoadOfLValue - Given an expression that represents a value lvalue,
   /// this method emits the address of the lvalue, then loads the result as an

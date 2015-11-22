@@ -1310,6 +1310,14 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *value, LValue lvalue,
                     lvalue.getTBAAOffset());
 }
 
+void CodeGenFunction::EmitStoreOfScalar(llvm::Value *value, LValue lvalue,
+                                        bool isInit, bool isVolatile) {
+  EmitStoreOfScalar(value, lvalue.getAddress(), isVolatile,
+                      lvalue.getAlignment().getQuantity(), lvalue.getType(),
+                      lvalue.getTBAAInfo(), isInit, lvalue.getTBAABaseType(),
+                      lvalue.getTBAAOffset());
+}
+
 /// EmitLoadOfLValue - Given an expression that represents a value lvalue, this
 /// method emits the address of the lvalue, then loads the result as an rvalue,
 /// returning the rvalue.
