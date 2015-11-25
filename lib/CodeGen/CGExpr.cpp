@@ -1443,7 +1443,7 @@ llvm::Value *CodeGenFunction::EmitExtVectorElementLValue(LValue LV) {
   llvm::Value *VectorBasePtrPlusIx =
     Builder.CreateInBoundsGEP(CastToPointerElement,
                               llvm::ConstantInt::get(SizeTy, ix), "add.ptr");
-  
+
   return VectorBasePtrPlusIx;
 }
 
@@ -3216,6 +3216,7 @@ LValue CodeGenFunction::EmitBinaryOperatorLValue(const BinaryOperator *E) {
     RValue RV = EmitAnyExpr(E->getRHS());
     LValue LV = EmitCheckedLValue(E->getLHS(), TCK_Store);
     EmitStoreThroughLValue(RV, LV);
+    UpdateReplicaPVDRefs(E->getLHS());
     return LV;
   }
 
@@ -3439,7 +3440,16 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     Callee = Builder.CreateBitCast(Callee, CalleeTy, "callee.knr.cast");
   }
 
-  return EmitCall(FnInfo, Callee, ReturnValue, Args, TargetDecl);
+  RValue RV = EmitCall(FnInfo, Callee, ReturnValue, Args, TargetDecl);
+
+  for (unsigned int i = 0; i < E->getNumArgs(); i++) {
+    UpdateReplicaPVDRefs(E->getArg(i));
+  }
+
+  const CXXMethodDecl *TD = dyn_cast_or_null<CXXMethodDecl>(TargetDecl);
+  UpdateReplicaCapturedPVDs(TD);
+
+  return RV;
 }
 
 LValue CodeGenFunction::

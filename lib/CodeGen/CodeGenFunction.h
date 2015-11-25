@@ -1258,6 +1258,15 @@ public:
   void EmitReplicateReturnEpilog();
   void EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *Val);
   void EmitPointerParmReplicaUpdate(DeclRefExpr *E, RValue src, LValue dst);
+  void CollectParmVarDeclRefs(const Expr *E,
+                              SmallVectorImpl<const DeclRefExpr*> &declRefs);
+  void UpdateReplicaPVDRefs(const Expr *E);
+  void UpdateReplicaCapturedPVDs(const CXXMethodDecl* MD);
+  bool doReplParmCheck(const DeclRefExpr* E);
+  bool isLambdaCaptured(const VarDecl *D);
+  void EmitPointerParmReplicaCheck(const DeclRefExpr *E);
+  void EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD, RValue src,
+                                    LValue dst);
   void EmitFunctionBody(FunctionArgList &Args, const Stmt *Body);
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 

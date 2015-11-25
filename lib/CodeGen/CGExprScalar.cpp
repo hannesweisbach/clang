@@ -269,15 +269,10 @@ public:
                                 E->getExprLoc());
       return result.getValue();
     }
-    Value *Val = EmitLoadOfLValue(E);
-    if (CGF.getLangOpts().ReplParm && isa<ParmVarDecl>(E->getDecl()) &&
-        Val->getType()->isPointerTy())
-    {
-      CGF.EmitPointerParmReplicaCheck(E, Val);
-      return EmitLoadOfLValue(E);
-    }
-    else
-      return Val;
+
+    if (CGF.doReplParmCheck(E))
+      CGF.EmitPointerParmReplicaCheck(E);
+    return EmitLoadOfLValue(E);
   }
 
   Value *VisitObjCSelectorExpr(ObjCSelectorExpr *E) {
@@ -1868,11 +1863,11 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     CGF.EmitStoreThroughLValue(RValue::get(value), LV);
 
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getSubExpr());
-    if(CGF.getLangOpts().ReplParm &&
-       exp && isa<ParmVarDecl>(exp->getDecl()) &&
-       cast<llvm::PointerType>(LV.getAddress()->getType())
-         ->getElementType()->isPointerTy())
-      CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(value), LV);
+    if(exp && CGF.doReplParmCheck(exp))
+    {
+      const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
+      CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(value), LV);
+    }
   }
 
   // If this is a postinc, return the value read from memory, otherwise use the
@@ -2223,11 +2218,10 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
 
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
-    if(CGF.getLangOpts().ReplParm &&
-       exp && isa<ParmVarDecl>(exp->getDecl()) &&
-       cast<llvm::PointerType>(LHSLV.getAddress()->getType())
-         ->getElementType()->isPointerTy())
-      CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(Result), LHSLV);
+    if(exp && CGF.doReplParmCheck(exp)) {
+      const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
+      CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(Result), LHSLV);
+    }
   }
 
   return LHSLV;
@@ -3040,13 +3034,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     else
     {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
-
-      DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
-      if(CGF.getLangOpts().ReplParm &&
-         exp && isa<ParmVarDecl>(exp->getDecl()) &&
-         cast<llvm::PointerType>(LHS.getAddress()->getType())
-           ->getElementType()->isPointerTy())
-        CGF.EmitPointerParmReplicaUpdate(exp, RValue::get(RHS), LHS);
+      CGF.UpdateReplicaPVDRefs(E->getLHS());
     }
   }
 

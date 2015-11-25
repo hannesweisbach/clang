@@ -78,8 +78,18 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorCall(
   RequiredArgs required = commonEmitCXXMemberOrOperatorCall(
       *this, MD, Callee, ReturnValue, This, ImplicitParam, ImplicitParamTy, CE,
       Args);
-  return EmitCall(CGM.getTypes().arrangeCXXMethodCall(Args, FPT, required),
-                  Callee, ReturnValue, Args, MD);
+  RValue RV =  EmitCall(CGM.getTypes().arrangeCXXMethodCall(Args, FPT, required),
+                        Callee, ReturnValue, Args, MD);
+
+  if(!CE) return RV;
+
+  for (unsigned int i = 0; i < CE->getNumArgs(); i++) {
+    UpdateReplicaPVDRefs(CE->getArg(i));
+  }
+
+  UpdateReplicaCapturedPVDs(MD);
+
+  return RV;
 }
 
 RValue CodeGenFunction::EmitCXXStructorCall(
@@ -172,7 +182,6 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
   else
     This = EmitLValue(Base).getAddress();
 
-
   if (MD->isTrivial() || (MD->isDefaulted() && MD->getParent()->isUnion())) {
     if (isa<CXXDestructorDecl>(MD)) return RValue::get(nullptr);
     if (isa<CXXConstructorDecl>(MD) && 
@@ -188,6 +197,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
         llvm::Value *RHS =
             EmitLValue(*(CE->arg_begin() + ArgsToSkip)).getAddress();
         EmitAggregateAssign(This, RHS, CE->getType());
+        UpdateReplicaPVDRefs(Base);
         return RValue::get(This);
       }
 
@@ -197,6 +207,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
         assert(CE->getNumArgs() == 1 && "unexpected argcount for trivial ctor");
         llvm::Value *RHS = EmitLValue(*CE->arg_begin()).getAddress();
         EmitAggregateCopy(This, RHS, CE->arg_begin()->getType());
+        UpdateReplicaPVDRefs(Base);
         return RValue::get(This);
       }
       llvm_unreachable("unknown trivial member function");
