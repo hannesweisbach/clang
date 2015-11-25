@@ -26,6 +26,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Value.h"
 
 namespace clang {
 struct ASTTemplateArgumentListInfo;
@@ -1332,11 +1333,14 @@ public:
   enum { MaxFunctionScopeDepth = 255 };
   enum { MaxFunctionScopeIndex = 255 };
 
+  std::unique_ptr<std::tuple<llvm::Value*, llvm::Value*,llvm::Value*>> repls;
 protected:
   ParmVarDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
               SourceLocation IdLoc, IdentifierInfo *Id, QualType T,
               TypeSourceInfo *TInfo, StorageClass S, Expr *DefArg)
-      : VarDecl(DK, C, DC, StartLoc, IdLoc, Id, T, TInfo, S) {
+    : VarDecl(DK, C, DC, StartLoc, IdLoc, Id, T, TInfo, S),
+      repls (new std::tuple<llvm::Value*, llvm::Value*,llvm::Value*>
+             (nullptr, nullptr, nullptr)) {
     assert(ParmVarDeclBits.HasInheritedDefaultArg == false);
     assert(ParmVarDeclBits.IsKNRPromoted == false);
     assert(ParmVarDeclBits.IsObjCMethodParam == false);
