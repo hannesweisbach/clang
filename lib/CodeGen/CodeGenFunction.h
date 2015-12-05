@@ -1256,12 +1256,12 @@ public:
   void emitImplicitAssignmentOperatorBody(FunctionArgList &Args);
   void EmitReplicateReturnProlog();
   void EmitReplicateReturnEpilog();
-  void EmitPointerParmReplicaCheck(DeclRefExpr *E, llvm::Value *Val);
-  void EmitPointerParmReplicaUpdate(DeclRefExpr *E, RValue src, LValue dst);
   void CollectParmVarDeclRefs(const Expr *E,
                               SmallVectorImpl<const DeclRefExpr*> &declRefs);
+  void CollectDeclRefs(const Expr *E,
+                       SmallVectorImpl<const DeclRefExpr*> &declRefs);
   void UpdateReplicaPVDRefs(const Expr *E);
-  void UpdateReplicaCapturedPVDs(const CXXMethodDecl* MD);
+  void UpdateReplicaRefCapturedPVDs(const CXXMethodDecl* MD);
   bool doReplParmCheck(const DeclRefExpr* E);
   bool isLambdaCaptured(const VarDecl *D);
   void EmitPointerParmReplicaCheck(const DeclRefExpr *E);
@@ -2335,7 +2335,6 @@ public:
   /// l-value.  The isInit flag indicates whether this is an initialization.
   /// If so, atomic qualifiers are ignored and the store is always non-atomic.
   void EmitStoreOfScalar(llvm::Value *value, LValue lvalue, bool isInit=false);
-  void EmitStoreOfScalar(llvm::Value *value, LValue lvalue, bool isInit, bool isVolatile);
 
   /// EmitLoadOfLValue - Given an expression that represents a value lvalue,
   /// this method emits the address of the lvalue, then loads the result as an

@@ -1310,14 +1310,6 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *value, LValue lvalue,
                     lvalue.getTBAAOffset());
 }
 
-void CodeGenFunction::EmitStoreOfScalar(llvm::Value *value, LValue lvalue,
-                                        bool isInit, bool isVolatile) {
-  EmitStoreOfScalar(value, lvalue.getAddress(), isVolatile,
-                      lvalue.getAlignment().getQuantity(), lvalue.getType(),
-                      lvalue.getTBAAInfo(), isInit, lvalue.getTBAABaseType(),
-                      lvalue.getTBAAOffset());
-}
-
 /// EmitLoadOfLValue - Given an expression that represents a value lvalue, this
 /// method emits the address of the lvalue, then loads the result as an rvalue,
 /// returning the rvalue.
@@ -3216,6 +3208,8 @@ LValue CodeGenFunction::EmitBinaryOperatorLValue(const BinaryOperator *E) {
     RValue RV = EmitAnyExpr(E->getRHS());
     LValue LV = EmitCheckedLValue(E->getLHS(), TCK_Store);
     EmitStoreThroughLValue(RV, LV);
+
+    // update copies after replicated parm has been modified
     UpdateReplicaPVDRefs(E->getLHS());
     return LV;
   }
@@ -3442,12 +3436,15 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
 
   RValue RV = EmitCall(FnInfo, Callee, ReturnValue, Args, TargetDecl);
 
+  // called function might have modified parms, update copies of parms
+  // mentioned in argument list
   for (unsigned int i = 0; i < E->getNumArgs(); i++) {
     UpdateReplicaPVDRefs(E->getArg(i));
   }
 
+  // or captured by lambda
   const CXXMethodDecl *TD = dyn_cast_or_null<CXXMethodDecl>(TargetDecl);
-  UpdateReplicaCapturedPVDs(TD);
+  UpdateReplicaRefCapturedPVDs(TD);
 
   return RV;
 }

@@ -270,6 +270,7 @@ public:
       return result.getValue();
     }
 
+    // check copies if replicated parm is to be used
     if (CGF.doReplParmCheck(E))
       CGF.EmitPointerParmReplicaCheck(E);
     return EmitLoadOfLValue(E);
@@ -1862,9 +1863,9 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   {
     CGF.EmitStoreThroughLValue(RValue::get(value), LV);
 
+    // update copies after replicated parm has been modified
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getSubExpr());
-    if(exp && CGF.doReplParmCheck(exp))
-    {
+    if (exp && CGF.doReplParmCheck(exp)) {
       const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
       CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(value), LV);
     }
@@ -2217,8 +2218,9 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   {
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
 
+    // update copies after replicated parm has been modified
     DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
-    if(exp && CGF.doReplParmCheck(exp)) {
+    if (exp && CGF.doReplParmCheck(exp)) {
       const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
       CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(Result), LHSLV);
     }
@@ -3034,6 +3036,8 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     else
     {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
+
+      // update copies after replicated parm has been modified
       CGF.UpdateReplicaPVDRefs(E->getLHS());
     }
   }

@@ -91,8 +91,17 @@ Each time the parameter is accessed (`ScalarExprEmitter::VisitDeclRefExpr`) is
 it checked for correctness.
 If the value of the parameter is changed, the copies are updated as well
 (`ScalarExprEmitter::EmitScalarPrePostIncDec`,
-`ScalarExprEmitter::EmitCompoundAssignLValue`,
-`ScalarExprEmitter::VisitBinAssign`).
+` ScalarExprEmitter::EmitCompoundAssignLValue`,
+` ScalarExprEmitter::VisitBinAssign,
+  CodeGenFunction::EmitBinaryOperatorLValue,
+  CodeGenFunction::EmitCXXMemberOrOperatorCall,
+  CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr ).
+After a function has been called, the copies of pointer parameters referenced in
+the argument list are updated, they might have been modified by the function
+(e.g. passed by ref))
+After a lambda function has been called, the copies of pointer parameters
+which have been captured by the lambda by Ref are updated.
+
 The update and the check are done via
 `CodeGenFunction::EmitPointerParmReplicaUpdate` and
 `CodeGenFunction::EmitPointerParmReplicaCheck`.

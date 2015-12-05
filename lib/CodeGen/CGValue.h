@@ -240,8 +240,8 @@ public:
   bool isVolatile() const {
     return Quals.hasVolatile();
   }
-  void setVolatile() {
-    Quals.addVolatile();
+  void setVolatile(bool flag) {
+    Quals.setVolatile(flag);
   }
 
   Expr *getBaseIvarExp() const { return BaseIvarExp; }
