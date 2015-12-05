@@ -795,15 +795,16 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
     EmitStmt(Body);
 }
 
-void CodeGenFunction::CollectParmVarDeclRefs(
+/// Find all referenced DeclRefs in the expression E
+void CodeGenFunction::CollectDeclRefs(
   const Expr* E,
   SmallVectorImpl<const DeclRefExpr*>& declRefs) {
   switch(E->getStmtClass()) {
   default: return;
   case Expr::ArraySubscriptExprClass: {
     const ArraySubscriptExpr* ASE = cast<ArraySubscriptExpr>(E);
-    CollectParmVarDeclRefs(ASE->getLHS(), declRefs);
-    CollectParmVarDeclRefs(ASE->getRHS(), declRefs);
+    CollectDeclRefs(ASE->getLHS(), declRefs);
+    CollectDeclRefs(ASE->getRHS(), declRefs);
     break;
   }
     // no const version?
@@ -813,23 +814,23 @@ void CodeGenFunction::CollectParmVarDeclRefs(
     //     // for(unsigned int i = 0; i < AE->getNumSubExprs(); i++)
     //     for(unsigned int i = 0; i < AE->getNumSubExprs(AE->getOp); i++)
     //     {
-    //         CollectParmVarDeclRefs(AE->getSubExprs()[i], declRefs);
+    //         CollectDeclRefs(AE->getSubExprs()[i], declRefs);
     //     }
     //     break;
     // }
   case Expr::BinaryConditionalOperatorClass: {
     const BinaryConditionalOperator* BCO = cast<BinaryConditionalOperator>(E);
-    CollectParmVarDeclRefs(BCO->getCommon(), declRefs);
-    CollectParmVarDeclRefs(BCO->getOpaqueValue(), declRefs);
-    CollectParmVarDeclRefs(BCO->getCond(), declRefs);
-    CollectParmVarDeclRefs(BCO->getTrueExpr(), declRefs);
-    CollectParmVarDeclRefs(BCO->getFalseExpr(), declRefs);
+    CollectDeclRefs(BCO->getCommon(), declRefs);
+    CollectDeclRefs(BCO->getOpaqueValue(), declRefs);
+    CollectDeclRefs(BCO->getCond(), declRefs);
+    CollectDeclRefs(BCO->getTrueExpr(), declRefs);
+    CollectDeclRefs(BCO->getFalseExpr(), declRefs);
     break;
   }
   case Expr::BinaryOperatorClass: {
     const BinaryOperator* BO = cast<BinaryOperator>(E);
-    CollectParmVarDeclRefs(BO->getLHS(), declRefs);
-    CollectParmVarDeclRefs(BO->getRHS(), declRefs);
+    CollectDeclRefs(BO->getLHS(), declRefs);
+    CollectDeclRefs(BO->getRHS(), declRefs);
     break;
   }
   case Expr::CallExprClass:
@@ -839,7 +840,7 @@ void CodeGenFunction::CollectParmVarDeclRefs(
     const CallExpr* CE = cast<CallExpr>(E);
     for(unsigned int i = 0; i < CE->getNumArgs(); i++)
     {
-      CollectParmVarDeclRefs(CE->getArg(i), declRefs);
+      CollectDeclRefs(CE->getArg(i), declRefs);
     }
     break;
   }
@@ -851,163 +852,163 @@ void CodeGenFunction::CollectParmVarDeclRefs(
   case Expr::CXXReinterpretCastExprClass:
   case Expr::CXXConstCastExprClass: {
     const CastExpr* CE = cast<CastExpr>(E);
-    CollectParmVarDeclRefs(CE->getSubExpr(), declRefs);
+    CollectDeclRefs(CE->getSubExpr(), declRefs);
     break;
   }
   case Expr::ChooseExprClass: {
     const ChooseExpr* CE = cast<ChooseExpr>(E);
-    CollectParmVarDeclRefs(CE->getLHS(), declRefs);
-    CollectParmVarDeclRefs(CE->getRHS(), declRefs);
-    CollectParmVarDeclRefs(CE->getCond(), declRefs);
+    CollectDeclRefs(CE->getLHS(), declRefs);
+    CollectDeclRefs(CE->getRHS(), declRefs);
+    CollectDeclRefs(CE->getCond(), declRefs);
     break;
   }
   case Expr::CompoundLiteralExprClass: {
     const CompoundLiteralExpr* CLE = cast<CompoundLiteralExpr>(E);
-    CollectParmVarDeclRefs(CLE->getInitializer(), declRefs);
+    CollectDeclRefs(CLE->getInitializer(), declRefs);
     break;
   }
   case Expr::ConditionalOperatorClass: {
     const ConditionalOperator* CO = cast<ConditionalOperator>(E);
-    CollectParmVarDeclRefs(CO->getCond(), declRefs);
-    CollectParmVarDeclRefs(CO->getTrueExpr(), declRefs);
-    CollectParmVarDeclRefs(CO->getFalseExpr(), declRefs);
+    CollectDeclRefs(CO->getCond(), declRefs);
+    CollectDeclRefs(CO->getTrueExpr(), declRefs);
+    CollectDeclRefs(CO->getFalseExpr(), declRefs);
     break;
   }
   case Expr::ConvertVectorExprClass: {
     const ConvertVectorExpr* CVE = cast<ConvertVectorExpr>(E);
-    CollectParmVarDeclRefs(CVE->getSrcExpr(), declRefs);
+    CollectDeclRefs(CVE->getSrcExpr(), declRefs);
     break;
   }
   case Expr::CXXBindTemporaryExprClass: {
     const CXXBindTemporaryExpr* BTE = cast<CXXBindTemporaryExpr>(E);
-    CollectParmVarDeclRefs(BTE->getSubExpr(), declRefs);
+    CollectDeclRefs(BTE->getSubExpr(), declRefs);
     break;
   }
   case Expr::CXXConstructExprClass: {
     const CXXConstructExpr* CE = cast<CXXConstructExpr>(E);
     for(unsigned int i = 0; i < CE->getNumArgs(); i++)
     {
-      CollectParmVarDeclRefs(CE->getArg(i), declRefs);
+      CollectDeclRefs(CE->getArg(i), declRefs);
     }
     break;
   }
   case Expr::CXXDefaultArgExprClass: {
     const CXXDefaultArgExpr* DAE = cast<CXXDefaultArgExpr>(E);
-    CollectParmVarDeclRefs(DAE->getExpr(), declRefs);
+    CollectDeclRefs(DAE->getExpr(), declRefs);
     break;
   }
   case Expr::CXXDefaultInitExprClass: {
     const CXXDefaultInitExpr* DIE = cast<CXXDefaultInitExpr>(E);
-    CollectParmVarDeclRefs(DIE->getExpr(), declRefs);
+    CollectDeclRefs(DIE->getExpr(), declRefs);
     break;
   }
   case Expr::CXXFoldExprClass: {
     const CXXFoldExpr* FE = cast<CXXFoldExpr>(E);
-    CollectParmVarDeclRefs(FE->getLHS(), declRefs);
-    CollectParmVarDeclRefs(FE->getRHS(), declRefs);
+    CollectDeclRefs(FE->getLHS(), declRefs);
+    CollectDeclRefs(FE->getRHS(), declRefs);
     break;
   }
   case Expr::CXXStdInitializerListExprClass: {
     const CXXStdInitializerListExpr* SILE = cast<CXXStdInitializerListExpr>(E);
-    CollectParmVarDeclRefs(SILE->getSubExpr(), declRefs);
+    CollectDeclRefs(SILE->getSubExpr(), declRefs);
     break;
   }
   case Expr::CXXTypeidExprClass: {
     const CXXTypeidExpr* TIDE = cast<CXXTypeidExpr>(E);
-    CollectParmVarDeclRefs(TIDE->getExprOperand(), declRefs);
+    CollectDeclRefs(TIDE->getExprOperand(), declRefs);
     break;
   }
   case Expr::CXXUuidofExprClass: {
     const CXXUuidofExpr* UUIDE = cast<CXXUuidofExpr>(E);
-    CollectParmVarDeclRefs(UUIDE->getExprOperand(), declRefs);
+    CollectDeclRefs(UUIDE->getExprOperand(), declRefs);
     break;
   }
   case Expr::ExprWithCleanupsClass: {
     const ExprWithCleanups* EWC = cast<ExprWithCleanups>(E);
-    CollectParmVarDeclRefs(EWC->getSubExpr(), declRefs);
+    CollectDeclRefs(EWC->getSubExpr(), declRefs);
     break;
   }
   case Expr::ExtVectorElementExprClass: {
     const ExtVectorElementExpr* EVEE = cast<ExtVectorElementExpr>(E);
-    CollectParmVarDeclRefs(EVEE->getBase(), declRefs);
+    CollectDeclRefs(EVEE->getBase(), declRefs);
     break;
   }
   case Expr::GenericSelectionExprClass: {
     const GenericSelectionExpr* GSE = cast<GenericSelectionExpr>(E);
     for(unsigned int i = 0; i < GSE->getNumAssocs(); i++)
     {
-      CollectParmVarDeclRefs(GSE->getAssocExpr(i), declRefs);
+      CollectDeclRefs(GSE->getAssocExpr(i), declRefs);
     }
-    CollectParmVarDeclRefs(GSE->getControllingExpr(), declRefs);
+    CollectDeclRefs(GSE->getControllingExpr(), declRefs);
     break;
   }
   case Expr::InitListExprClass: {
     const InitListExpr* ILE = cast<InitListExpr>(E);
     for(unsigned int i = 0; i < ILE->getNumInits(); i++)
     {
-      CollectParmVarDeclRefs(ILE->getInit(i), declRefs);
+      CollectDeclRefs(ILE->getInit(i), declRefs);
     }
     break;
   }
   case Expr::MaterializeTemporaryExprClass: {
     const MaterializeTemporaryExpr* MTE = cast<MaterializeTemporaryExpr>(E);
-    CollectParmVarDeclRefs(MTE->GetTemporaryExpr(), declRefs);
+    CollectDeclRefs(MTE->GetTemporaryExpr(), declRefs);
     break;
   }
   case Expr::MemberExprClass: {
     const MemberExpr* ME = cast<MemberExpr>(E);
-    CollectParmVarDeclRefs(ME->getBase(), declRefs);
+    CollectDeclRefs(ME->getBase(), declRefs);
     break;
   }
   case Expr::MSPropertyRefExprClass: {
     const MSPropertyRefExpr* MSPRE = cast<MSPropertyRefExpr>(E);
-    CollectParmVarDeclRefs(MSPRE->getBaseExpr(), declRefs);
+    CollectDeclRefs(MSPRE->getBaseExpr(), declRefs);
     break;
   }
     // clang-3.8
     // case Expr::MSPropertySubscriptExprClass: {
     //     const MSPropertySubscriptExpr* MSPSE = cast<MSPropertySubscriptExpr>(E);
-    //     CollectParmVarDeclRefs(MSPSE->getBase(), declRefs);
-    //     CollectParmVarDeclRefs(MSPSE->getIdx(), declRefs);
+    //     CollectDeclRefs(MSPSE->getBase(), declRefs);
+    //     CollectDeclRefs(MSPSE->getIdx(), declRefs);
     //     break;
     // }
   case Expr::OffsetOfExprClass: {
     const OffsetOfExpr* OOE = cast<OffsetOfExpr>(E);
     for(unsigned int i = 0; i < OOE->getNumExpressions(); i++)
     {
-      CollectParmVarDeclRefs(OOE->getIndexExpr(i), declRefs);
+      CollectDeclRefs(OOE->getIndexExpr(i), declRefs);
     }
     break;
   }
     // clang-3.8
     // case Expr::OMPArraySectionExprClass: {
     //     const OMPArraySectionExpr* OMPASE = cast<OMPArraySectionExpr>(E);
-    //     CollectParmVarDeclRefs(OMPASE->getBase(), declRefs);
-    //     CollectParmVarDeclRefs(OMPASE->getLowerBound(), declRefs);
-    //     CollectParmVarDeclRefs(OMPASE->getLength(), declRefs);
+    //     CollectDeclRefs(OMPASE->getBase(), declRefs);
+    //     CollectDeclRefs(OMPASE->getLowerBound(), declRefs);
+    //     CollectDeclRefs(OMPASE->getLength(), declRefs);
     //     break;
     // }
   case Expr::OpaqueValueExprClass: {
     const OpaqueValueExpr* OVE = cast<OpaqueValueExpr>(E);
     const Expr* SE = OVE->getSourceExpr();
-    if(SE) CollectParmVarDeclRefs(SE, declRefs);
+    if(SE) CollectDeclRefs(SE, declRefs);
     break;
   }
   case Expr::PackExpansionExprClass: {
     const PackExpansionExpr* PEE = cast<PackExpansionExpr>(E);
-    CollectParmVarDeclRefs(PEE->getPattern(), declRefs);
+    CollectDeclRefs(PEE->getPattern(), declRefs);
     break;
   }
   case Expr::ParenExprClass: {
     const ParenExpr* PE = cast<ParenExpr>(E);
-    CollectParmVarDeclRefs(PE->getSubExpr(), declRefs);
+    CollectDeclRefs(PE->getSubExpr(), declRefs);
     break;
   }
   case Expr::ParenListExprClass: {
     const ParenListExpr* PLE = cast<ParenListExpr>(E);
     for(unsigned int i = 0; i < PLE->getNumExprs(); i++)
     {
-      CollectParmVarDeclRefs(PLE->getExpr(i), declRefs);
+      CollectDeclRefs(PLE->getExpr(i), declRefs);
     }
     break;
   }
@@ -1015,7 +1016,7 @@ void CodeGenFunction::CollectParmVarDeclRefs(
     const PseudoObjectExpr* POE = cast<PseudoObjectExpr>(E);
     for(unsigned int i = 0; i < POE->getNumSemanticExprs(); i++)
     {
-      CollectParmVarDeclRefs(POE->getSemanticExpr(i), declRefs);
+      CollectDeclRefs(POE->getSemanticExpr(i), declRefs);
     }
     break;
   }
@@ -1023,30 +1024,30 @@ void CodeGenFunction::CollectParmVarDeclRefs(
     const ShuffleVectorExpr* SVE = cast<ShuffleVectorExpr>(E);
     for(unsigned int i = 0; i < SVE->getNumSubExprs(); i++)
     {
-      CollectParmVarDeclRefs(SVE->getExpr(i), declRefs);
+      CollectDeclRefs(SVE->getExpr(i), declRefs);
     }
     break;
   }
   case Expr::SubstNonTypeTemplateParmExprClass: {
     const SubstNonTypeTemplateParmExpr* SNTTPE =
       cast<SubstNonTypeTemplateParmExpr>(E);
-    CollectParmVarDeclRefs(SNTTPE->getReplacement(), declRefs);
+    CollectDeclRefs(SNTTPE->getReplacement(), declRefs);
     break;
   }
   case Expr::UnaryExprOrTypeTraitExprClass: {
     const UnaryExprOrTypeTraitExpr* UEOTTE = cast<UnaryExprOrTypeTraitExpr>(E);
     if (!UEOTTE->isArgumentType())
-      CollectParmVarDeclRefs(UEOTTE->getArgumentExpr(), declRefs);
+      CollectDeclRefs(UEOTTE->getArgumentExpr(), declRefs);
     break;
   }
   case Expr::UnaryOperatorClass: {
     const UnaryOperator* UO = cast<UnaryOperator>(E);
-    CollectParmVarDeclRefs(UO->getSubExpr(), declRefs);
+    CollectDeclRefs(UO->getSubExpr(), declRefs);
     break;
   }
   case Expr::VAArgExprClass: {
     const VAArgExpr* VAAE = cast<VAArgExpr>(E);
-    CollectParmVarDeclRefs(VAAE->getSubExpr(), declRefs);
+    CollectDeclRefs(VAAE->getSubExpr(), declRefs);
     break;
   }
   case Expr::DeclRefExprClass: {
@@ -1055,17 +1056,16 @@ void CodeGenFunction::CollectParmVarDeclRefs(
     break;
   }
   }
-
 }
 
+/// Update the values of all parameter replicas referenced by expression E
+/// Value might have been changed outside our control
 void CodeGenFunction::UpdateReplicaPVDRefs(const Expr *E) {
   SmallVector<const DeclRefExpr*, 4> declRefs;
-  CollectParmVarDeclRefs(E, declRefs);
+  CollectDeclRefs(E, declRefs);
 
-  for (auto* DRE : declRefs)
-  {
-    if (doReplParmCheck(DRE))
-    {
+  for (auto *DRE : declRefs) {
+    if (doReplParmCheck(DRE)) {
       LValue LV = EmitCheckedLValue(DRE, CodeGenFunction::TCK_Store);
       RValue RV = EmitLoadOfLValue(LV, DRE->getExprLoc());
 
@@ -1075,17 +1075,16 @@ void CodeGenFunction::UpdateReplicaPVDRefs(const Expr *E) {
   }
 }
 
-void CodeGenFunction::UpdateReplicaCapturedPVDs(const CXXMethodDecl* MD) {
-  if (MD && MD->getParent()->isLambda())
-  {
-    llvm::DenseMap<const VarDecl *, FieldDecl *> lcf;
-    FieldDecl *ltcf;
-    MD->getParent()->getCaptureFields(lcf, ltcf);
-    for(auto pvdp : ParmDeclMap)
-    {
-      const ParmVarDecl* PVD = cast<ParmVarDecl>(pvdp.first);
-      if(lcf.count(PVD) && std::get<0>(*PVD->repls))
-      {
+/// Update the value of all parameter replicas captured by declaration MD
+/// Value might have been changed outside our control
+void CodeGenFunction::UpdateReplicaRefCapturedPVDs(const CXXMethodDecl* MD) {
+  if (MD && MD->getParent()->isLambda()) {
+    for (auto const& caps : MD->getParent()->captures()) {
+      if (caps.getCaptureKind() != LCK_ByRef) continue;
+
+      if (ParmVarDecl* PVD = dyn_cast<ParmVarDecl>(caps.getCapturedVar())) {
+        if (!ParmDeclMap.count(PVD)) continue;
+
         llvm::Value *V = LocalDeclMap.lookup(PVD);
         CharUnits Alignment = getContext().getDeclAlign(PVD);
         QualType T = PVD->getType();
@@ -1102,21 +1101,21 @@ bool CodeGenFunction::doReplParmCheck(const DeclRefExpr* E) {
     (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
     E && isa<ParmVarDecl>(E->getDecl()) &&
     E->getDecl()->getType()->isPointerType() &&
-    // if in lambda, parm of enclosing func captured, but not in parmdeclmap
+    // if we are in a lambda, PVDs of enclosing function might have been
+    // captured, but are not in ParmDeclMap of the current (lambda) function
     !isLambdaCaptured(cast<VarDecl>(E->getDecl())) &&
     !E->refersToEnclosingVariableOrCapture();
 }
 
 bool CodeGenFunction::isLambdaCaptured(const VarDecl *D) {
-  if (LambdaCaptureFields.count(D))
-  {
-    return true;
-    }
-  else
-    return false;
+  return LambdaCaptureFields.count(D);
 }
 
-// no lambda, no this pointer yet!
+/// Emit code to check if the replicated values of the parameter corresponding
+/// to the DeclRefExpr E are still consistent.
+/// The "this" pointer is currently not checked.
+/// If we are in a lambda function, captured variables corresponding to a
+/// pointer parameter of the enclosing are not checked
 void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   const ParmVarDecl *PVD = cast<ParmVarDecl>(E->getDecl());
   assert(ParmDeclMap.count(PVD) &&
@@ -1177,59 +1176,13 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   EmitBlock(RestoreParm);
   if (CGM.getLangOpts().ReplParmDbg)
     Builder.CreateCall(funcRestore, {});
-
-  // delete later, debugging
-  // till EmitBlock(ContBlock)
-  llvm::FunctionType *PrintTy =
-    llvm::FunctionType::get(Builder.getVoidTy(), {Builder.getInt8PtrTy()},
-                            false);
-
-  auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
-  StringRef dbgStr =
-    PVD->getOriginalType().getAsString() +
-    std::string(" ") +
-    PVD->getNameAsString() +
-    std::string(" in ") +
-    (cfd ? cfd->getQualifiedNameAsString() :
-    std::string("not available")) +
-    std::string(": restoring...\n");
-  std::string asmPrint =
-	"movq $$1, %rax;"
-	"movq $$1, %rdi;"
-	"movq $0, %rsi;"
-	"movq $$";
-  asmPrint += std::to_string(dbgStr.size());
-  asmPrint += ", %rdx;"
-	"syscall;";
-  llvm::InlineAsm *funcPrint = llvm::InlineAsm::get(PrintTy, asmPrint, "m,~{rax},~{rdi},~{rsi},~{rdx},~{rcx},~{r11}",
-													false, false,
-													llvm::InlineAsm::AD_ATT);
-  std::string asmPrint32 =
-	"movl $$4, %eax;"
-	"movl $$1, %ebx;"
-	"movl $0, %ecx;"
-	"movl $$";
-  asmPrint32 += std::to_string(dbgStr.size());
-  asmPrint32 += ", %edx;"
-	"int $$0x80;";
-  llvm::InlineAsm *funcPrint32 = llvm::InlineAsm::get(PrintTy, asmPrint32, "m",
-													false, false,
-													llvm::InlineAsm::AD_ATT);
-  llvm::Value* dbgStrVal = Builder.CreateGlobalStringPtr(dbgStr, "printStr");
-  if(getTarget().getPointerWidth(0) > 32)
-	Builder.CreateCall(funcPrint, {dbgStrVal});
-  else
-	Builder.CreateCall(funcPrint32, {dbgStrVal});
   Builder.CreateStore(replParm1, std::get<0>(*PVD->repls), true);
-  Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
-  Builder.CreateUnreachable();
 
   EmitBlock(ContBlock);
 }
 
-//function wird aufgerufen die wert aendert??
-// **pointer
-// doppelpointer? func parm oder class member in constructor?
+/// Emit code to update the replicas of a pointer argument after its value
+/// has been changed (or potentially changed)
 void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
                                                    RValue src, LValue dst) {
   assert(ParmDeclMap.count(PVD) &&
@@ -1237,8 +1190,9 @@ void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
   assert(std::get<0>(*PVD->repls) &&
          "Pointer parameter not entered in ParmDeclMap?");
 
+  dst.setVolatile(true);
+
   dst.setAddress(std::get<1>(*PVD->repls));
-  dst.setVolatile();
   EmitStoreThroughLValue(src, dst);
   dst.setAddress(std::get<2>(*PVD->repls));
   EmitStoreThroughLValue(src, dst);

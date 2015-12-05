@@ -81,13 +81,16 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorCall(
   RValue RV =  EmitCall(CGM.getTypes().arrangeCXXMethodCall(Args, FPT, required),
                         Callee, ReturnValue, Args, MD);
 
-  if(!CE) return RV;
+  if (!CE) return RV;
 
+  // called function might have modified parms, update copies of parms
+  // mentioned in argument list
   for (unsigned int i = 0; i < CE->getNumArgs(); i++) {
     UpdateReplicaPVDRefs(CE->getArg(i));
   }
 
-  UpdateReplicaCapturedPVDs(MD);
+  // or captured by lambda
+  UpdateReplicaRefCapturedPVDs(MD);
 
   return RV;
 }
@@ -197,6 +200,8 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
         llvm::Value *RHS =
             EmitLValue(*(CE->arg_begin() + ArgsToSkip)).getAddress();
         EmitAggregateAssign(This, RHS, CE->getType());
+
+        // update copies after replicated parm has been modified
         UpdateReplicaPVDRefs(Base);
         return RValue::get(This);
       }
