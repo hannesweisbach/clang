@@ -1803,10 +1803,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
                                               D.getName() + ".addrrepl2");
     ptr2->setAlignment(Align.getQuantity());
     LValue repl1 = MakeAddrLValue(ptr1, Ty, Align);
-    repl1.setVolatile(true);
     EmitStoreOfScalar(Arg, repl1, true);
     LValue repl2 = MakeAddrLValue(ptr2, Ty, Align);
-    repl2.setVolatile(true);
     EmitStoreOfScalar(Arg, repl2, true);
 
     ParmDeclMap[&D] = std::make_pair(ptr1, ptr2);

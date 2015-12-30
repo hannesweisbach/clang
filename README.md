@@ -84,6 +84,8 @@ correct value can be recovered the program can continue, otherwise it is
 terminated.
 
 ### Implementation
+
+#### clang
 On function entry clang emits an alloca for every parameter and stores the value
 there. This is used as a hook to check the type and to create three instead of
 one alloca for each pointer parameter (`CodeGenFunction::EmitParmDecl`).
@@ -108,8 +110,12 @@ The update and the check are done via
 
 TODO: Indirect accesses are not protected (e.g. via copies or pointer arithmetic)
 
-
-(No changes in llvm are neccessary.)
+#### llvm
+The intrinsics `llvm.load.ptr` and `llvm.store.ptr` are added. They dereference
+respectively assign a new value to a pointer. This is used to prevent unwanted
+optimization occurring  on higher optimization levels as the compiler notices
+the redundant copies. `llvm.load.ptr` is used to access and check the copies,
+`llvm.store.ptr` is used to update the copies.
 
 ### Usage
 To enable generation of TMR-protected function parameters, the flag
