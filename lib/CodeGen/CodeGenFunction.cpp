@@ -1147,6 +1147,11 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
                          false, false,
                          llvm::InlineAsm::AD_ATT);
 
+  auto ty1 = std::get<0>(*PVD->repls)->getType()->getContainedType(0);
+  auto ty2 = std::get<0>(*PVD->repls)->getType();
+  auto loadPtr = CGM.getIntrinsic(llvm::Intrinsic::load_ptr, {ty1, ty2});
+  auto storePtr = CGM.getIntrinsic(llvm::Intrinsic::store_ptr, {ty1, ty2});
+
   auto ContBlock = createBasicBlock("repl.parm.true.cont");
   auto Check13Fail = createBasicBlock("repl.parm.check13.fail");
   auto Check23Fail = createBasicBlock("repl.parm.check23.fail");
@@ -1154,7 +1159,8 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   auto RestoreParm = createBasicBlock("repl.parm.restore");
 
   auto V = Builder.CreateLoad(std::get<0>(*PVD->repls), "parm");
-  auto replParm1 = Builder.CreateLoad(std::get<1>(*PVD->repls), "replParm1");
+  auto replParm1 = Builder.CreateCall(loadPtr, std::get<1>(*PVD->repls),
+                                      "replParm1");
   auto eq13 = Builder.CreateICmpEQ(V, replParm1, "comp13");
   Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
@@ -1165,7 +1171,8 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   Builder.CreateUnreachable();
 
   EmitBlock(Check13Fail);
-  auto replParm2 = Builder.CreateLoad(std::get<2>(*PVD->repls), "replParm2");
+  auto replParm2 = Builder.CreateCall(loadPtr, std::get<2>(*PVD->repls),
+                                      "replParm2");
   auto eq23 = Builder.CreateICmpEQ(V, replParm2, "comp23");
   Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
 
@@ -1176,7 +1183,7 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   EmitBlock(RestoreParm);
   if (CGM.getLangOpts().ReplParmDbg)
     Builder.CreateCall(funcRestore, {});
-  Builder.CreateStore(replParm1, std::get<0>(*PVD->repls), true);
+  Builder.CreateCall(storePtr, {replParm1, std::get<0>(*PVD->repls)});
 
   EmitBlock(ContBlock);
 }
@@ -1190,12 +1197,11 @@ void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
   assert(std::get<0>(*PVD->repls) &&
          "Pointer parameter not entered in ParmDeclMap?");
 
-  dst.setVolatile(true);
-
-  dst.setAddress(std::get<1>(*PVD->repls));
-  EmitStoreThroughLValue(src, dst);
-  dst.setAddress(std::get<2>(*PVD->repls));
-  EmitStoreThroughLValue(src, dst);
+  auto ty1 = std::get<0>(*PVD->repls)->getType()->getContainedType(0);
+  auto ty2 = std::get<0>(*PVD->repls)->getType();
+  auto storePtr = CGM.getIntrinsic(llvm::Intrinsic::store_ptr, {ty1, ty2});
+  Builder.CreateCall(storePtr, {src.getScalarVal(), std::get<1>(*PVD->repls)});
+  Builder.CreateCall(storePtr, {src.getScalarVal(), std::get<2>(*PVD->repls)});
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
