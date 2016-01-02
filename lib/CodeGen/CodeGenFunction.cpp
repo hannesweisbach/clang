@@ -915,6 +915,7 @@ void CodeGenFunction::CollectDeclRefs(
   }
   case Expr::CXXTypeidExprClass: {
     const CXXTypeidExpr* TIDE = cast<CXXTypeidExpr>(E);
+    if(TIDE->isTypeOperand()) break;
     CollectDeclRefs(TIDE->getExprOperand(), declRefs);
     break;
   }
