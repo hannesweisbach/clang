@@ -1256,8 +1256,6 @@ public:
   void emitImplicitAssignmentOperatorBody(FunctionArgList &Args);
   void EmitReplicateReturnProlog();
   void EmitReplicateReturnEpilog();
-  void CollectParmVarDeclRefs(const Expr *E,
-                              SmallVectorImpl<const DeclRefExpr*> &declRefs);
   void CollectDeclRefs(const Expr *E,
                        SmallVectorImpl<const DeclRefExpr*> &declRefs);
   void UpdateReplicaPVDRefs(const Expr *E);
