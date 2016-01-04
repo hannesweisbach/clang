@@ -2186,7 +2186,7 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
       Builder.CreateCondBr(no_fault, ContBlock, IsRep3Faulty);
 
       EmitBlock(TrapBlock);
-      Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+      Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
       Builder.CreateUnreachable();
 
       EmitBlock(IsRep3Faulty);
