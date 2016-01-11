@@ -818,6 +818,17 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
 
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
+  auto &&diag = CGM.getDiags();
+  unsigned DiagID =
+      diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                           ? DiagnosticsEngine::Level::Remark
+                           : DiagnosticsEngine::Level::Ignored,
+                           "Initialization of TMR'ed return address in %0");
+
+  auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
+  diag.Report(DiagID) << (cfd ? cfd->getQualifiedNameAsString() :
+                          std::string("not available"));
+
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
   retAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
@@ -832,6 +843,17 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
+  auto &&diag = CGM.getDiags();
+  unsigned DiagID =
+      diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                           ? DiagnosticsEngine::Level::Remark
+                           : DiagnosticsEngine::Level::Ignored,
+                           "Generating check of TMR'ed return address in %0");
+
+  auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
+  diag.Report(DiagID) << (cfd ? cfd->getQualifiedNameAsString() :
+                          std::string("not available"));
+
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
 
