@@ -83,15 +83,16 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorCall(
 
   if (!CE) return RV;
 
-  // called function might have modified parms, update copies of parms
-  // mentioned in argument list
-  for (unsigned int i = 0; i < CE->getNumArgs(); i++) {
-    UpdateReplicaPVDRefs(CE->getArg(i));
+  if (getLangOpts().ReplParm) {
+    // called function might have modified parms, update copies of parms
+    // mentioned in argument list
+    for (unsigned int i = 0; i < CE->getNumArgs(); i++) {
+      UpdateReplicaPVDRefs(CE->getArg(i));
+    }
+
+    // or captured by lambda
+    UpdateReplicaRefCapturedPVDs(MD);
   }
-
-  // or captured by lambda
-  UpdateReplicaRefCapturedPVDs(MD);
-
   return RV;
 }
 
@@ -201,8 +202,10 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
             EmitLValue(*(CE->arg_begin() + ArgsToSkip)).getAddress();
         EmitAggregateAssign(This, RHS, CE->getType());
 
-        // update copies after replicated parm has been modified
-        UpdateReplicaPVDRefs(Base);
+        if (getLangOpts().ReplParm) {
+          // update copies after replicated parm has been modified
+          UpdateReplicaPVDRefs(Base);
+        }
         return RValue::get(This);
       }
 
@@ -212,7 +215,10 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
         assert(CE->getNumArgs() == 1 && "unexpected argcount for trivial ctor");
         llvm::Value *RHS = EmitLValue(*CE->arg_begin()).getAddress();
         EmitAggregateCopy(This, RHS, CE->arg_begin()->getType());
-        UpdateReplicaPVDRefs(Base);
+
+        if (getLangOpts().ReplParm) {
+          UpdateReplicaPVDRefs(Base);
+        }
         return RValue::get(This);
       }
       llvm_unreachable("unknown trivial member function");
