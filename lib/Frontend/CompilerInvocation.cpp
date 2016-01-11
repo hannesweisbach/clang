@@ -1593,6 +1593,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.GNUAsm = !Args.hasArg(OPT_fno_gnu_inline_asm);
   Opts.ReplFrameAddr = Args.hasArg(OPT_frepl_frame_addr);
   Opts.ReplFrameAddrDbg = Args.hasArg(OPT_frepl_frame_addr_dbg);
+  Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
 
   if (!Opts.CurrentModule.empty() && !Opts.ImplementationOfModule.empty() &&
       Opts.CurrentModule != Opts.ImplementationOfModule) {
