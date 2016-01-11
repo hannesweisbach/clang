@@ -3209,8 +3209,10 @@ LValue CodeGenFunction::EmitBinaryOperatorLValue(const BinaryOperator *E) {
     LValue LV = EmitCheckedLValue(E->getLHS(), TCK_Store);
     EmitStoreThroughLValue(RV, LV);
 
-    // update copies after replicated parm has been modified
-    UpdateReplicaPVDRefs(E->getLHS());
+    if (getLangOpts().ReplParm) {
+      // update copies after replicated parm has been modified
+      UpdateReplicaPVDRefs(E->getLHS());
+    }
     return LV;
   }
 
@@ -3436,16 +3438,17 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
 
   RValue RV = EmitCall(FnInfo, Callee, ReturnValue, Args, TargetDecl);
 
-  // called function might have modified parms, update copies of parms
-  // mentioned in argument list
-  for (unsigned int i = 0; i < E->getNumArgs(); i++) {
-    UpdateReplicaPVDRefs(E->getArg(i));
+  if (getLangOpts().ReplParm) {
+    // called function might have modified parms, update copies of parms
+    // mentioned in argument list
+    for (unsigned int i = 0; i < E->getNumArgs(); i++) {
+      UpdateReplicaPVDRefs(E->getArg(i));
+    }
+
+    // or captured by lambda
+    const CXXMethodDecl *TD = dyn_cast_or_null<CXXMethodDecl>(TargetDecl);
+    UpdateReplicaRefCapturedPVDs(TD);
   }
-
-  // or captured by lambda
-  const CXXMethodDecl *TD = dyn_cast_or_null<CXXMethodDecl>(TargetDecl);
-  UpdateReplicaRefCapturedPVDs(TD);
-
   return RV;
 }
 

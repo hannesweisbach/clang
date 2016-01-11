@@ -3037,8 +3037,10 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
 
-      // update copies after replicated parm has been modified
-      CGF.UpdateReplicaPVDRefs(E->getLHS());
+      if (CGF.getLangOpts().ReplParm) {
+        // update copies after replicated parm has been modified
+        CGF.UpdateReplicaPVDRefs(E->getLHS());
+      }
     }
   }
 
