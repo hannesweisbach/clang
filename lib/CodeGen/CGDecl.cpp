@@ -1796,6 +1796,19 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
       // no this pointer for now
       !isa<ImplicitParamDecl>(D))
   {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                             ? DiagnosticsEngine::Level::Remark
+                             : DiagnosticsEngine::Level::Ignored,
+                             "Initialization of TMR'ed ptr parm %0 %1 in %2");
+
+    auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
+    diag.Report(DiagID) << cast<ParmVarDecl>(D).getOriginalType().getAsString()
+                        << D.getNameAsString()
+                        <<(cfd ? cfd->getQualifiedNameAsString() :
+                            std::string("not available"));
+
     llvm::AllocaInst *ptr1 = CreateTempAlloca(llvmTy,
                                               D.getName() + ".addrrepl1");
     ptr1->setAlignment(Align.getQuantity());
