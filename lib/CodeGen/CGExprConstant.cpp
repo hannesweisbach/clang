@@ -429,6 +429,11 @@ void ConstStructBuilder::Build(const APValue &Val, const RecordDecl *RD,
           CGM.getCXXABI().getVTableAddressPointForConstExpr(
               BaseSubobject(CD, Offset), VTableClass);
       AppendBytes(Offset, VTableAddressPoint);
+
+      if (CGM.getLangOpts().ProtectVptr) {
+          AppendBytes(Offset+getSizeInChars(VTableAddressPoint), VTableAddressPoint);
+          AppendBytes(Offset+2*getSizeInChars(VTableAddressPoint), VTableAddressPoint);
+      }
     }
 
     // Accumulate and sort bases, in order to visit them in address order, which
