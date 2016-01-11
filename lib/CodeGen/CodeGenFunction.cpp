@@ -1223,6 +1223,19 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   assert(std::get<0>(*PVD->repls) &&
          "Pointer parameter not entered in ParmVarDecl?");
 
+  auto &&diag = CGM.getDiags();
+  unsigned DiagID =
+      diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                           ? DiagnosticsEngine::Level::Remark
+                           : DiagnosticsEngine::Level::Ignored,
+                           "Generating check of TMR'ed ptr parm %0 %1 in %2");
+
+  auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
+  diag.Report(DiagID) << PVD->getOriginalType().getAsString()
+                      << PVD->getQualifiedNameAsString()
+                      << (cfd ? cfd->getQualifiedNameAsString() :
+                          std::string("not available"));
+
   llvm::FunctionType *dbgFuncTy =
     llvm::FunctionType::get(Builder.getVoidTy(),
                             {}, false);
@@ -1296,6 +1309,19 @@ void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
          "Pointer parameter not entered in ParmDeclMap?");
   assert(std::get<0>(*PVD->repls) &&
          "Pointer parameter not entered in ParmDeclMap?");
+
+  auto &&diag = CGM.getDiags();
+  unsigned DiagID =
+      diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                           ? DiagnosticsEngine::Level::Remark
+                           : DiagnosticsEngine::Level::Ignored,
+                           "Generating update of TMR'ed ptr parm %0 %1 in %2");
+
+  auto* cfd = cast_or_null<clang::NamedDecl>(CurFuncDecl);
+  diag.Report(DiagID) << PVD->getOriginalType().getAsString()
+                      << PVD->getQualifiedNameAsString()
+                      << (cfd ? cfd->getQualifiedNameAsString() :
+                          std::string("not available"));
 
   auto ty1 = std::get<0>(*PVD->repls)->getType()->getContainedType(0);
   auto ty2 = std::get<0>(*PVD->repls)->getType();
