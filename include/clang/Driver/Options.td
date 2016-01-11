@@ -1041,6 +1041,12 @@ def fdata_sections : Flag <["-"], "fdata-sections">, Group<f_Group>,
 def fno_data_sections : Flag <["-"], "fno-data-sections">, Group<f_Group>,
   Flags<[CC1Option]>;
 
+def fverbose_fault_tolerance
+    : Flag<["-"], "fverbose-fault-tolerance">,
+      Flags<[CC1Option]>,
+      HelpText<
+          "Generate additional output when using fault-tolerance features">;
+
 def funique_section_names : Flag <["-"], "funique-section-names">,
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Use unique names for text and data sections (ELF Only)">;
