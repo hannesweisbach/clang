@@ -1819,7 +1819,8 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(llvm::Value *Value,
                                                 DestTy, DestRecordTy, CastEnd);
   }
 
-  CastNotNull = Builder.GetInsertBlock();
+  if (CGM.getLangOpts().ProtectVptr)
+    CastNotNull = Builder.GetInsertBlock();
 
   if (ShouldNullCheckSrcValue) {
     EmitBranch(CastEnd);

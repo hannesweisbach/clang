@@ -459,7 +459,8 @@ llvm::Value *ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   llvm::Value *VTable = CGF.GetVTablePtr(This, VTableTy);
   // GetVTablePtr creates new BBs, when VPtr TMR is used.
   // This fixes the incoming BBs for the PHINode below, otherwise it is a No-Op.
-  FnVirtual = Builder.GetInsertBlock();
+  if (CGM.getLangOpts().ProtectVptr)
+    FnVirtual = Builder.GetInsertBlock();
 
   // Apply the offset.
   llvm::Value *VTableOffset = FnAsInt;
