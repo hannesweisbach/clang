@@ -1,0 +1,102 @@
+diff --git a/lib/msan/msan.h b/lib/msan/msan.h
+index 0adbeb6..13a9fdf 100644
+--- a/lib/msan/msan.h
++++ b/lib/msan/msan.h
+@@ -75,6 +75,7 @@ const MappingDesc kMemoryLayout[] = {
+ 
+ #elif SANITIZER_LINUX && SANITIZER_WORDSIZE == 64
+ 
++#ifdef MSAN_LINUX_X86_64_OLD_MAPPING
+ // Requries PIE binary and ASLR enabled.
+ // Main thread stack and DSOs at 0x7f0000000000 (sometimes 0x7e0000000000).
+ // Heap at 0x600000000000.
+@@ -86,6 +87,28 @@ const MappingDesc kMemoryLayout[] = {
+ 
+ #define MEM_TO_SHADOW(mem) (((uptr)(mem)) & ~0x400000000000ULL)
+ #define SHADOW_TO_ORIGIN(mem) (((uptr)(mem)) + 0x200000000000ULL)
++#else  // MSAN_LINUX_X86_64_OLD_MAPPING
++// All of the following configurations are supported.
++// ASLR disabled: main executable and DSOs at 0x555550000000
++// PIE and ASLR: main executable and DSOs at 0x7f0000000000
++// non-PIE: main executable below 0x100000000, DSOs at 0x7f0000000000
++// Heap at 0x700000000000.
++const MappingDesc kMemoryLayout[] = {
++    {0x000000000000ULL, 0x010000000000ULL, MappingDesc::APP, "app-1"},
++    {0x010000000000ULL, 0x100000000000ULL, MappingDesc::SHADOW, "shadow-2"},
++    {0x100000000000ULL, 0x110000000000ULL, MappingDesc::INVALID, "invalid"},
++    {0x110000000000ULL, 0x200000000000ULL, MappingDesc::ORIGIN, "origin-2"},
++    {0x200000000000ULL, 0x300000000000ULL, MappingDesc::SHADOW, "shadow-3"},
++    {0x300000000000ULL, 0x400000000000ULL, MappingDesc::ORIGIN, "origin-3"},
++    {0x400000000000ULL, 0x500000000000ULL, MappingDesc::INVALID, "invalid"},
++    {0x500000000000ULL, 0x510000000000ULL, MappingDesc::SHADOW, "shadow-1"},
++    {0x510000000000ULL, 0x600000000000ULL, MappingDesc::APP, "app-2"},
++    {0x600000000000ULL, 0x610000000000ULL, MappingDesc::ORIGIN, "origin-1"},
++    {0x610000000000ULL, 0x700000000000ULL, MappingDesc::INVALID, "invalid"},
++    {0x700000000000ULL, 0x800000000000ULL, MappingDesc::APP, "app-3"}};
++#define MEM_TO_SHADOW(mem) (((uptr)(mem)) ^ 0x500000000000ULL)
++#define SHADOW_TO_ORIGIN(mem) (((uptr)(mem)) + 0x100000000000ULL)
++#endif  // MSAN_LINUX_X86_64_OLD_MAPPING
+ 
+ #else
+ #error "Unsupported platform"
+diff --git a/lib/msan/msan_allocator.cc b/lib/msan/msan_allocator.cc
+index 698b6cd..db9376b 100644
+--- a/lib/msan/msan_allocator.cc
++++ b/lib/msan/msan_allocator.cc
+@@ -50,8 +50,12 @@ struct MsanMapUnmapCallback {
+                                SizeClassMap, kRegionSizeLog, ByteMap,
+                                MsanMapUnmapCallback> PrimaryAllocator;
+ #elif defined(__x86_64__)
++#if SANITIZER_LINUX && !defined(MSAN_LINUX_X86_64_OLD_MAPPING)
++  static const uptr kAllocatorSpace = 0x700000000000ULL;
++#else
+   static const uptr kAllocatorSpace = 0x600000000000ULL;
+-  static const uptr kAllocatorSize   = 0x80000000000;  // 8T.
++#endif
++  static const uptr kAllocatorSize = 0x80000000000; // 8T.
+   static const uptr kMetadataSize  = sizeof(Metadata);
+   static const uptr kMaxAllowedMallocSize = 8UL << 30;
+ 
+diff --git a/test/msan/mmap.cc b/test/msan/mmap.cc
+index cd7b93d..79948e4 100644
+--- a/test/msan/mmap.cc
++++ b/test/msan/mmap.cc
+@@ -13,7 +13,9 @@ bool AddrIsApp(void *p) {
+ #if defined(__FreeBSD__) && defined(__x86_64__)
+   return addr < 0x010000000000ULL || addr >= 0x600000000000ULL;
+ #elif defined(__x86_64__)
+-  return addr >= 0x600000000000ULL;
++  return (addr >= 0x000000000000ULL && addr < 0x010000000000ULL) ||
++         (addr >= 0x510000000000ULL && addr < 0x600000000000ULL) ||
++         (addr >= 0x700000000000ULL && addr < 0x800000000000ULL);
+ #elif defined(__mips64)
+   return addr >= 0x00e000000000ULL;
+ #endif
+diff --git a/test/msan/strlen_of_shadow.cc b/test/msan/strlen_of_shadow.cc
+index d6f8be7..ca57302 100644
+--- a/test/msan/strlen_of_shadow.cc
++++ b/test/msan/strlen_of_shadow.cc
+@@ -10,7 +10,7 @@
+ 
+ const char *mem_to_shadow(const char *p) {
+ #if defined(__x86_64__)
+-  return (char *)((uintptr_t)p & ~0x400000000000ULL);
++    return (char *)((uintptr_t)p ^ 0x500000000000ULL);
+ #elif defined (__mips64)
+   return (char *)((uintptr_t)p & ~0x4000000000ULL);
+ #endif
+diff --git a/test/sanitizer_common/TestCases/Posix/decorate_proc_maps.cc b/test/sanitizer_common/TestCases/Posix/decorate_proc_maps.cc
+index 6224717..62379d2 100644
+--- a/test/sanitizer_common/TestCases/Posix/decorate_proc_maps.cc
++++ b/test/sanitizer_common/TestCases/Posix/decorate_proc_maps.cc
+@@ -46,8 +46,8 @@ int main(void) {
+ // CHECK-asan: rw-p {{.*}} [high shadow]
+ 
+ // CHECK-msan: ---p {{.*}} [invalid]
+-// CHECK-msan: rw-p {{.*}} [shadow]
+-// CHECK-msan: ---p {{.*}} [origin]
++// CHECK-msan: rw-p {{.*}} [shadow{{.*}}]
++// CHECK-msan: ---p {{.*}} [origin{{.*}}]
+ 
+ // CHECK-tsan: rw-p {{.*}} [shadow]
+ // CHECK-tsan: rw-p {{.*}} [meta shadow]
