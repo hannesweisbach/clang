@@ -28,6 +28,7 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
@@ -178,6 +179,11 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
       delete ReturnBlock.getBlock();
     } else
       EmitBlock(ReturnBlock.getBlock());
+
+    if (CGM.getLangOpts().ReplFrameAddr) {
+      EmitReplicateFpAddrEpilog();
+    }
+
     return llvm::DebugLoc();
   }
 
@@ -194,6 +200,11 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
       llvm::DebugLoc Loc = BI->getDebugLoc();
       Builder.SetInsertPoint(BI->getParent());
       BI->eraseFromParent();
+
+      if (CGM.getLangOpts().ReplFrameAddr) {
+        EmitReplicateFpAddrEpilog();
+      }
+
       delete ReturnBlock.getBlock();
       return Loc;
     }
@@ -202,6 +213,9 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
   // FIXME: We are at an unreachable point, there is no reason to emit the block
   // unless it has uses. However, we still need a place to put the debug
   // region.end for now.
+  if (CGM.getLangOpts().ReplFrameAddr) {
+    EmitReplicateFpAddrEpilog();
+  }
 
   EmitBlock(ReturnBlock.getBlock());
   return llvm::DebugLoc();
@@ -783,6 +797,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
   // Emit a location at the end of the prologue.
   if (CGDebugInfo *DI = getDebugInfo())
     DI->EmitLocation(Builder, StartLoc);
+
+  if (CGM.getLangOpts().ReplFrameAddr) {
+    // Back up 2 copies of frame pointer address
+    EnsureInsertPoint();
+    EmitReplicateFpAddrProlog();
+  }
 }
 
 void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
@@ -792,6 +812,83 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
     EmitCompoundStmtWithoutScope(*S);
   else
     EmitStmt(Body);
+}
+
+void CodeGenFunction::EmitReplicateFpAddrProlog()
+{
+  auto getFA = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
+  auto fpAddr1 = Builder.CreateCall(getFA, Builder.getInt32(1));
+  fpAddrLoc1 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+                                     "fpAddrLoc1");
+  Builder.CreateStore(fpAddr1, fpAddrLoc1);
+
+  auto fpAddr2 = Builder.CreateCall(getFA, Builder.getInt32(1));
+  fpAddrLoc2 = Builder.CreateAlloca(Builder.getInt8PtrTy(), nullptr,
+                                     "fpAddrLoc2");
+  Builder.CreateStore(fpAddr2, fpAddrLoc2);
+}
+
+void CodeGenFunction::EmitReplicateFpAddrEpilog()
+{
+  auto getFA = CGM.getIntrinsic(llvm::Intrinsic::frameaddress);
+  auto setFA = CGM.getIntrinsic(llvm::Intrinsic::setframeaddress);
+
+  llvm::FunctionType *dbgFuncTy =
+    llvm::FunctionType::get(Builder.getVoidTy(),
+                            {}, false);
+  std::string asmTrap =
+    "int3;"
+    "jmp 1f;"
+    ".ascii \"Invalid return address, aborting...\";"
+    "1:";
+  llvm::InlineAsm *funcTrap =
+    llvm::InlineAsm::get(dbgFuncTy, asmTrap, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  std::string asmRestore =
+    "int3;"
+    "nop;"
+    "jmp 1f;"
+    ".ascii \"Invalid return address, restoring...\";"
+    "1:";
+  llvm::InlineAsm *funcRestore =
+    llvm::InlineAsm::get(dbgFuncTy, asmRestore, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  auto ContBlock = createBasicBlock("repl.fpaddr.true.cont");
+  auto Check13Fail = createBasicBlock("repl.fpaddr.check13.fail");
+  auto Check23Fail = createBasicBlock("repl.fpaddr.check23.fail");
+  auto TrapBlock = createBasicBlock("repl.fpaddr.false.trap");
+  auto RestoreFPAddr = createBasicBlock("repl.fpaddr.restore");
+
+  auto fpAddr3 = Builder.CreateCall(getFA, Builder.getInt32(1));
+  auto fpAddr1 = Builder.CreateLoad(fpAddrLoc1, "fpAddr1");
+  auto eq13 = Builder.CreateICmpEQ(fpAddr1, fpAddr3, "comp13");
+  Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
+
+  EmitBlock(TrapBlock);
+  if (CGM.getLangOpts().ReplFrameAddrDbg)
+    Builder.CreateCall(funcTrap, {});
+  Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
+  Builder.CreateUnreachable();
+
+  EmitBlock(Check13Fail);
+  auto fpAddr2 = Builder.CreateLoad(fpAddrLoc2, "fpAddr2");
+  auto eq23 = Builder.CreateICmpEQ(fpAddr2, fpAddr3, "comp23");
+  Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
+
+  EmitBlock(Check23Fail);
+  auto eq12 = Builder.CreateICmpEQ(fpAddr1, fpAddr2, "comp12");
+  Builder.CreateCondBr(eq12, RestoreFPAddr, TrapBlock);
+
+  EmitBlock(RestoreFPAddr);
+  if (CGM.getLangOpts().ReplFrameAddrDbg)
+    Builder.CreateCall(funcRestore, {});
+  Builder.CreateCall(setFA, fpAddr1);
+
+  EmitBlock(ContBlock);
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks

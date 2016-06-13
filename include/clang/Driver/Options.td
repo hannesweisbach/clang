@@ -908,6 +908,10 @@ def framework : Separate<["-"], "framework">, Flags<[LinkerInput]>;
 def frandom_seed_EQ : Joined<["-"], "frandom-seed=">, Group<clang_ignored_f_Group>;
 def freg_struct_return : Flag<["-"], "freg-struct-return">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Override the default ABI to return small structs in registers">;
+def frepl_frame_addr : Flag<["-"], "frepl-frame-addr">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Turn on TMR-protection for the frame pointer address">;
+def frepl_frame_addr_dbg : Flag<["-"], "frepl-frame-addr-dbg">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Turn on TMR-protection for the frame pointer address and insert int3 instruction for debugging">;
 def frtti : Flag<["-"], "frtti">, Group<f_Group>;
 def : Flag<["-"], "fsched-interblock">, Group<clang_ignored_f_Group>;
 def fshort_enums : Flag<["-"], "fshort-enums">, Group<f_Group>, Flags<[CC1Option]>,

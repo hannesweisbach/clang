@@ -227,6 +227,8 @@ LANGOPT(RetainCommentsFromSystemHeaders, 1, 0, "retain documentation comments fr
 LANGOPT(SanitizeAddressFieldPadding, 2, 0, "controls how aggressive is ASan "
                                            "field padding (0: none, 1:least "
                                            "aggressive, 2: more aggressive)")
+COMPATIBLE_LANGOPT(ReplFrameAddr, 1, 0, "TMR-protect the frame pointer address")
+COMPATIBLE_LANGOPT(ReplFrameAddrDbg, 1, 0, "TMR-protect the frame pointer address, inserts int3 instruction for debugging")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

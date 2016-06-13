@@ -163,6 +163,10 @@ public:
   /// iff the function has no return value.
   llvm::Value *ReturnValue;
 
+  /// Replicated frame pointer address
+  llvm::Value* fpAddrLoc1;
+  llvm::Value* fpAddrLoc2;
+
   /// AllocaInsertPoint - This is an instruction in the entry block before which
   /// we prefer to insert allocas.
   llvm::AssertingVH<llvm::Instruction> AllocaInsertPt;
@@ -1246,6 +1250,8 @@ public:
   void EmitConstructorBody(FunctionArgList &Args);
   void EmitDestructorBody(FunctionArgList &Args);
   void emitImplicitAssignmentOperatorBody(FunctionArgList &Args);
+  void EmitReplicateFpAddrProlog();
+  void EmitReplicateFpAddrEpilog();
   void EmitFunctionBody(FunctionArgList &Args, const Stmt *Body);
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 

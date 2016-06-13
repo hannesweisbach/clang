@@ -3409,6 +3409,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   else if (Args.hasArg(options::OPT_fprofile_instr_use))
     CmdArgs.push_back("-fprofile-instr-use=pgo-data");
 
+  if (Args.hasArg(options::OPT_frepl_frame_addr))
+    CmdArgs.push_back("-frepl-frame-addr");
+
+  if (Args.hasArg(options::OPT_frepl_frame_addr_dbg)) {
+    CmdArgs.push_back("-frepl-frame-addr");
+    CmdArgs.push_back("-frepl-frame-addr-dbg");
+  }
+
   if (Args.hasArg(options::OPT_ftest_coverage) ||
       Args.hasArg(options::OPT_coverage))
     CmdArgs.push_back("-femit-coverage-notes");
