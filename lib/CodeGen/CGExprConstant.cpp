@@ -429,6 +429,18 @@ void ConstStructBuilder::Build(const APValue &Val, const RecordDecl *RD,
           CGM.getCXXABI().getVTableAddressPointForConstExpr(
               BaseSubobject(CD, Offset), VTableClass);
       AppendBytes(Offset, VTableAddressPoint);
+
+      if (CGM.getLangOpts().ProtectVptr) {
+        const unsigned copies = 2 * CGM.getLangOpts().ProtectVptr;
+        const auto offset_inc = CGM.getLangOpts().ProtectVptrExtended
+                                    ? 2 * getSizeInChars(VTableAddressPoint)
+                                    : getSizeInChars(VTableAddressPoint);
+        auto copy_offset = offset_inc;
+        for (unsigned copy = 0; copy < copies; ++copy) {
+          AppendBytes(Offset + copy_offset, VTableAddressPoint);
+          copy_offset += offset_inc;
+        }
+      }
     }
 
     // Accumulate and sort bases, in order to visit them in address order, which
