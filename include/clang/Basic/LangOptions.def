@@ -117,7 +117,7 @@ LANGOPT(NoBuiltin         , 1, 0, "disable builtin functions")
 LANGOPT(NoMathBuiltin     , 1, 0, "disable math builtin functions")
 LANGOPT(GNUAsm            , 1, 1, "GNU-style inline assembly")
 
-BENIGN_LANGOPT(ProtectVptr, 1, 0, "TMR-protect the vptr")
+ENUM_LANGOPT(VptrReplication, VptrReplicationMode, 2, None, "TMR-protect the vptr")
 BENIGN_LANGOPT(ProtectVptrExtended, 1, 0, "Space vptr replicas one work apart")
 BENIGN_LANGOPT(VerboseFaultTolerance, 1, 0, "Verbose for fault-tolerance features")
 BENIGN_LANGOPT(NoStdProtection, 1, 0, "Exclude std:: from fault tolerance")

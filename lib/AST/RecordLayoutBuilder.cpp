@@ -1028,7 +1028,7 @@ RecordLayoutBuilder::LayoutNonVirtualBases(const CXXRecordDecl *RD) {
     EnsureVTablePointerAlignment(PtrAlign);
     HasOwnVFPtr = true;
 
-    if (Context.getLangOpts().ProtectVptr) {
+    if (Context.getLangOpts().getVptrReplication()) {
       auto &&diag = Context.getDiagnostics();
       unsigned DiagID =
           diag.getCustomDiagID(Context.getLangOpts().VerboseFaultTolerance
@@ -1040,12 +1040,14 @@ RecordLayoutBuilder::LayoutNonVirtualBases(const CXXRecordDecl *RD) {
         diag.Report(DiagID) << "Skip reserving" << RD;
       } else {
         diag.Report(DiagID) << "Reserving" << RD;
-        // TODO: DMR
-        const size_t replicas = 3;
-        const size_t space =
-            replicas +
-            (Context.getLangOpts().ProtectVptrExtended ? replicas - 1 : 0);
-        PtrWidth = PtrWidth * space;
+        /* space for replicas */
+        size_t space = Context.getLangOpts().getVptrReplication();
+        /* space for gaps between replicas */
+        if (Context.getLangOpts().ProtectVptrExtended)
+          space *= 2;
+
+        /* space for replicas (+ gaps) + orignal */
+        PtrWidth = PtrWidth * (space + 1);
       }
     }
 

@@ -2615,7 +2615,8 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy);
 
   Fields.push_back(VTable);
-  if (CGM.getLangOpts().ProtectVptr) {
+  const unsigned replicas = CGM.getLangOpts().getVptrReplication();
+  if (replicas > 0) {
     auto &&diag = CGM.getDiags();
     unsigned DiagID =
         diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
@@ -2625,12 +2626,11 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
 
     if (CGM.getLangOpts().NoStdProtection) {
       diag.Report(DiagID) << "Skip initialisation" << Ty->getTypeClassName();
-    }else {
+    } else {
       diag.Report(DiagID) << "Initialisation" << Ty->getTypeClassName();
-      Fields.push_back(VTable);
-      Fields.push_back(VTable);
-      if (CGM.getLangOpts().ProtectVptrExtended) {
-        Fields.push_back(VTable);
+      for (unsigned replica = 0; replica < replicas; ++replica) {
+        if (CGM.getLangOpts().ProtectVptrExtended) /* dummy field */
+          Fields.push_back(VTable);
         Fields.push_back(VTable);
       }
     }

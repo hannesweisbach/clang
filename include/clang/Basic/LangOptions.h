@@ -67,6 +67,8 @@ public:
 
   enum AddrSpaceMapMangling { ASMM_Target, ASMM_On, ASMM_Off };
 
+  enum VptrReplicationMode { None = 0, DMR = 1, TMR = 2 };
+
 public:
   /// \brief Set of enabled sanitizers.
   SanitizerSet Sanitize;

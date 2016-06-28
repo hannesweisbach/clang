@@ -430,15 +430,15 @@ void ConstStructBuilder::Build(const APValue &Val, const RecordDecl *RD,
               BaseSubobject(CD, Offset), VTableClass);
       AppendBytes(Offset, VTableAddressPoint);
 
-      if (CGM.getLangOpts().ProtectVptr) {
-        const unsigned copies = 2 * CGM.getLangOpts().ProtectVptr;
-        const auto offset_inc = CGM.getLangOpts().ProtectVptrExtended
-                                    ? 2 * getSizeInChars(VTableAddressPoint)
-                                    : getSizeInChars(VTableAddressPoint);
-        auto copy_offset = offset_inc;
-        for (unsigned copy = 0; copy < copies; ++copy) {
+      const unsigned replicas = CGM.getLangOpts().getVptrReplication();
+      if (replicas > 0) {
+        const auto stride = CGM.getLangOpts().ProtectVptrExtended
+                                ? 2 * getSizeInChars(VTableAddressPoint)
+                                : 1 * getSizeInChars(VTableAddressPoint);
+        auto copy_offset = stride;
+        for (unsigned replica = 0; replica < replicas; ++replica) {
           AppendBytes(Offset + copy_offset, VTableAddressPoint);
-          copy_offset += offset_inc;
+          copy_offset += stride;
         }
       }
     }

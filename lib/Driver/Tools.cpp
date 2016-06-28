@@ -3427,8 +3427,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fno-std-protection");
   if (Args.hasArg(options::OPT_fverbose_fault_tolerance))
     CmdArgs.push_back("-fverbose-fault-tolerance");
-  if (Args.hasArg(options::OPT_fprotect_vptr))
-    CmdArgs.push_back("-fprotect-vptr");
+  if (Arg *A = Args.getLastArg(options::OPT_fvptr_replication_EQ)) {
+    std::string VptrReplicationStr = "-fvptr-replication=";
+    VptrReplicationStr += A->getValue();
+    CmdArgs.push_back(Args.MakeArgString(VptrReplicationStr));
+  }
   if (Args.hasArg(options::OPT_fprotect_vptr_extended))
     CmdArgs.push_back("-fprotect-vptr-extended");
 

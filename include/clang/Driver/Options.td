@@ -1039,9 +1039,9 @@ def fno_std_protection : Flag<["-"], "fno-std-protection">,
                          Flags<[CC1Option]>,
                          HelpText<"Exclude data structures in namespace std:: "
                                   "from fault tolerance schemes.">;
-def fprotect_vptr : Flag<["-"], "fprotect-vptr">,
-                    Flags<[CC1Option]>,
-                    HelpText<"Protect the vptr using TMR">;
+def fvptr_replication_EQ : Joined<["-"], "fvptr-replication=">,
+                           Flags<[CC1Option]>,
+                           HelpText<"Protect the vptr using D/TMR">;
 def fprotect_vptr_extended : Flag<["-"], "fprotect-vptr-extended">,
                              Flags<[CC1Option]>,
                              HelpText<"Space vptr replicas 1 word apart">;
