@@ -164,6 +164,13 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
   }
 }
 
+static bool hasOmitReplReturn(const Decl *D) {
+  if (D)
+    return D->hasAttr<OmitReplReturnAttr>();
+  else
+    return false;
+}
+
 llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
   // For cleanliness, we try to avoid emitting the return block for
   // simple cases.
@@ -180,7 +187,7 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
     } else
       EmitBlock(ReturnBlock.getBlock());
 
-    if (CGM.getLangOpts().ReplReturn) {
+    if (CGM.getLangOpts().ReplReturn && !hasOmitReplReturn(CurCodeDecl)) {
       EmitReplicateReturnEpilog();
     }
     return llvm::DebugLoc();
@@ -200,7 +207,7 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
       Builder.SetInsertPoint(BI->getParent());
       BI->eraseFromParent();
 
-      if (CGM.getLangOpts().ReplReturn) {
+      if (CGM.getLangOpts().ReplReturn && !hasOmitReplReturn(CurCodeDecl)) {
         EmitReplicateReturnEpilog();
       }
 
@@ -215,7 +222,7 @@ llvm::DebugLoc CodeGenFunction::EmitReturnBlock() {
 
   EmitBlock(ReturnBlock.getBlock());
 
-  if (CGM.getLangOpts().ReplReturn) {
+  if (CGM.getLangOpts().ReplReturn && !hasOmitReplReturn(CurCodeDecl)) {
     EmitReplicateReturnEpilog();
   }
 
@@ -799,7 +806,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
   if (CGDebugInfo *DI = getDebugInfo())
     DI->EmitLocation(Builder, StartLoc);
 
-  if (CGM.getLangOpts().ReplReturn) {
+  if (CGM.getLangOpts().ReplReturn && !hasOmitReplReturn(CurCodeDecl)) {
     // Back up 2 copies of return address
     EnsureInsertPoint();
     EmitReplicateReturnProlog();

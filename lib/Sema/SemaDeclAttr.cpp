@@ -4469,6 +4469,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     // Type attributes are handled elsewhere; silently move on.
     assert(Attr.isTypeAttr() && "Non-type attribute not handled");
     break;
+  case AttributeList::AT_OmitReplReturn:
+    handleSimpleAttribute<OmitReplReturnAttr>(S, D, Attr);
+    break;
   case AttributeList::AT_Interrupt:
     handleInterruptAttr(S, D, Attr);
     break;
