@@ -3747,6 +3747,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);
 
+  if (Args.hasArg(options::OPT_fno_std_protection))
+    CmdArgs.push_back("-fno-std-protection");
+  if (Args.hasArg(options::OPT_fverbose_fault_tolerance))
+    CmdArgs.push_back("-fverbose-fault-tolerance");
+  if (Arg *A = Args.getLastArg(options::OPT_fvptr_replication_EQ)) {
+    std::string VptrReplicationStr = "-fvptr-replication=";
+    VptrReplicationStr += A->getValue();
+    CmdArgs.push_back(Args.MakeArgString(VptrReplicationStr));
+  }
+  if (Args.hasArg(options::OPT_fprotect_vptr_extended))
+    CmdArgs.push_back("-fprotect-vptr-extended");
+
   // Pass options for controlling the default header search paths.
   if (Args.hasArg(options::OPT_nostdinc)) {
     CmdArgs.push_back("-nostdsysteminc");

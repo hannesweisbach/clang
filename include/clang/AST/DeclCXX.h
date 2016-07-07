@@ -790,6 +790,16 @@ public:
   friend_iterator friend_end() const;
   void pushFriendDecl(FriendDecl *FD);
 
+  bool isBelowStdNamespace() const {
+    for (const DeclContext *ctx = getDeclContext(); ctx;
+         ctx = ctx->getParent()) {
+      if (ctx->isStdNamespace()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Determines whether this record has any friends.
   bool hasFriends() const {
     return data().FirstFriend.isValid();

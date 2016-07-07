@@ -74,6 +74,8 @@ public:
     MSVC2015 = 19
   };
 
+  enum VptrReplicationMode { None = 0, DMR = 1, TMR = 2 };
+
 public:
   /// \brief Set of enabled sanitizers.
   SanitizerSet Sanitize;

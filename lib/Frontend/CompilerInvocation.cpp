@@ -1603,6 +1603,31 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.HalfArgsAndReturns = Args.hasArg(OPT_fallow_half_arguments_and_returns);
   Opts.GNUAsm = !Args.hasArg(OPT_fno_gnu_inline_asm);
 
+  Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
+  if (Arg *A = Args.getLastArg(OPT_fvptr_replication_EQ)) {
+    switch (llvm::StringSwitch<unsigned>(A->getValue())
+                .Case("none", LangOptions::None)
+                .Case("dmr", LangOptions::DMR)
+                .Case("tmr", LangOptions::TMR)
+                .Default(255)) {
+    default:
+      Diags.Report(diag::err_drv_invalid_value) << "-fvptr-replication="
+                                                << A->getValue();
+      break;
+    case LangOptions::None:
+      Opts.setVptrReplication(LangOptions::None);
+      break;
+    case LangOptions::DMR:
+      Opts.setVptrReplication(LangOptions::DMR);
+      break;
+    case LangOptions::TMR:
+      Opts.setVptrReplication(LangOptions::TMR);
+      break;
+    }
+  }
+  Opts.ProtectVptrExtended = Args.hasArg(OPT_fprotect_vptr_extended);
+  Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
+
   if (!Opts.CurrentModule.empty() && !Opts.ImplementationOfModule.empty() &&
       Opts.CurrentModule != Opts.ImplementationOfModule) {
     Diags.Report(diag::err_conflicting_module_names)
