@@ -1229,6 +1229,22 @@ def fdata_sections : Flag <["-"], "fdata-sections">, Group<f_Group>,
 def fno_data_sections : Flag <["-"], "fno-data-sections">, Group<f_Group>,
   Flags<[CC1Option]>;
 
+def fverbose_fault_tolerance
+    : Flag<["-"], "fverbose-fault-tolerance">,
+      Flags<[CC1Option]>,
+      HelpText<
+          "Generate additional output when using fault-tolerance features">;
+def fno_std_protection : Flag<["-"], "fno-std-protection">,
+                         Flags<[CC1Option]>,
+                         HelpText<"Exclude data structures in namespace std:: "
+                                  "from fault tolerance schemes.">;
+def fvptr_replication_EQ : Joined<["-"], "fvptr-replication=">,
+                           Flags<[CC1Option]>,
+                           HelpText<"Protect the vptr using D/TMR">;
+def fprotect_vptr_extended : Flag<["-"], "fprotect-vptr-extended">,
+                             Flags<[CC1Option]>,
+                             HelpText<"Space vptr replicas 1 word apart">;
+
 def funique_section_names : Flag <["-"], "funique-section-names">,
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Use unique names for text and data sections (ELF Only)">;

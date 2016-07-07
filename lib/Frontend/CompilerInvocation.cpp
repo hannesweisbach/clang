@@ -1962,6 +1962,31 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Args.hasFlag(OPT_fdeclspec, OPT_fno_declspec,
                    (Opts.MicrosoftExt || Opts.Borland || Opts.CUDA));
 
+  Opts.NoStdProtection = Args.hasArg(OPT_fno_std_protection);
+  if (Arg *A = Args.getLastArg(OPT_fvptr_replication_EQ)) {
+    switch (llvm::StringSwitch<unsigned>(A->getValue())
+                .Case("none", LangOptions::None)
+                .Case("dmr", LangOptions::DMR)
+                .Case("tmr", LangOptions::TMR)
+                .Default(255)) {
+    default:
+      Diags.Report(diag::err_drv_invalid_value) << "-fvptr-replication="
+                                                << A->getValue();
+      break;
+    case LangOptions::None:
+      Opts.setVptrReplication(LangOptions::None);
+      break;
+    case LangOptions::DMR:
+      Opts.setVptrReplication(LangOptions::DMR);
+      break;
+    case LangOptions::TMR:
+      Opts.setVptrReplication(LangOptions::TMR);
+      break;
+    }
+  }
+  Opts.ProtectVptrExtended = Args.hasArg(OPT_fprotect_vptr_extended);
+  Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
+
   // For now, we only support local submodule visibility in C++ (because we
   // heavily depend on the ODR for merging redefinitions).
   if (Opts.ModulesLocalVisibility && !Opts.CPlusPlus)

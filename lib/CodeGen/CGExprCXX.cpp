@@ -1915,6 +1915,8 @@ llvm::Value *CodeGenFunction::EmitDynamicCast(Address ThisAddr,
     CastNotNull = Builder.GetInsertBlock();
   }
 
+  CastNotNull = Builder.GetInsertBlock();
+
   if (ShouldNullCheckSrcValue) {
     EmitBranch(CastEnd);
 

@@ -577,6 +577,10 @@ llvm::Value *ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
                                       CGF.getPointerAlign());
   llvm::Value *VTable =
     CGF.GetVTablePtr(Address(This, VTablePtrAlign), VTableTy, RD);
+  
+  // GetVTablePtr creates new BBs, when VPtr TMR is used.
+  // This fixes the incoming BBs for the PHINode below, otherwise it is a No-Op.
+  FnVirtual = Builder.GetInsertBlock();
 
   // Apply the offset.
   llvm::Value *VTableOffset = FnAsInt;
@@ -2839,6 +2843,26 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy);
 
   Fields.push_back(VTable);
+  const unsigned replicas = CGM.getLangOpts().getVptrReplication();
+  if (replicas > 0) {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                                 ? DiagnosticsEngine::Level::Remark
+                                 : DiagnosticsEngine::Level::Ignored,
+                             "%0 of TMR'ed VPtr in typeinfo for %1");
+
+    if (CGM.getLangOpts().NoStdProtection) {
+      diag.Report(DiagID) << "Skip initialisation" << Ty->getTypeClassName();
+    } else {
+      diag.Report(DiagID) << "Initialisation" << Ty->getTypeClassName();
+      for (unsigned replica = 0; replica < replicas; ++replica) {
+        if (CGM.getLangOpts().ProtectVptrExtended) /* dummy field */
+          Fields.push_back(VTable);
+        Fields.push_back(VTable);
+      }
+    }
+  }
 }
 
 /// \brief Return the linkage that the type info and type info name constants

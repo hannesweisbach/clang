@@ -135,6 +135,11 @@ LANGOPT(NoMathBuiltin     , 1, 0, "disable math builtin functions")
 LANGOPT(GNUAsm            , 1, 1, "GNU-style inline assembly")
 LANGOPT(Coroutines        , 1, 0, "C++ coroutines")
 
+ENUM_LANGOPT(VptrReplication, VptrReplicationMode, 2, None, "TMR-protect the vptr")
+BENIGN_LANGOPT(ProtectVptrExtended, 1, 0, "Space vptr replicas one work apart")
+BENIGN_LANGOPT(VerboseFaultTolerance, 1, 0, "Verbose for fault-tolerance features")
+BENIGN_LANGOPT(NoStdProtection, 1, 0, "Exclude std:: from fault tolerance")
+
 BENIGN_LANGOPT(ThreadsafeStatics , 1, 1, "thread-safe static initializers")
 LANGOPT(POSIXThreads      , 1, 0, "POSIX thread support")
 LANGOPT(Blocks            , 1, 0, "blocks extension to C")

@@ -1023,6 +1023,30 @@ void ItaniumRecordLayoutBuilder::LayoutNonVirtualBases(
       Context.toCharUnitsFromBits(Context.getTargetInfo().getPointerAlign(0));
     EnsureVTablePointerAlignment(PtrAlign);
     HasOwnVFPtr = true;
+
+    if (Context.getLangOpts().getVptrReplication()) {
+      auto &&diag = Context.getDiagnostics();
+      unsigned DiagID =
+          diag.getCustomDiagID(Context.getLangOpts().VerboseFaultTolerance
+                                   ? DiagnosticsEngine::Level::Remark
+                                   : DiagnosticsEngine::Level::Ignored,
+                               "%0 space for TMR'ed VPtr in %1");
+      // TODO: proper blacklisting and linking against non-fault-tolerant code
+      if (Context.getLangOpts().NoStdProtection && RD->isBelowStdNamespace()) {
+        diag.Report(DiagID) << "Skip reserving" << RD;
+      } else {
+        diag.Report(DiagID) << "Reserving" << RD;
+        /* space for replicas */
+        size_t space = Context.getLangOpts().getVptrReplication();
+        /* space for gaps between replicas */
+        if (Context.getLangOpts().ProtectVptrExtended)
+          space *= 2;
+
+        /* space for replicas (+ gaps) + orignal */
+        PtrWidth = PtrWidth * (space + 1);
+      }
+    }
+
     setSize(getSize() + PtrWidth);
     setDataSize(getSize());
   }

@@ -2475,6 +2475,49 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
   if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
       CGM.getCodeGenOpts().StrictVTablePointers)
     CGM.DecorateInstructionWithInvariantGroup(Store, Vptr.VTableClass);
+
+  const unsigned replicas = CGM.getLangOpts().getVptrReplication();
+  if (replicas > 0) {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                                 ? DiagnosticsEngine::Level::Remark
+                                 : DiagnosticsEngine::Level::Ignored,
+                             "%0 of TMR'ed VPtr in %1");
+
+    std::string TypeName;
+    llvm::raw_string_ostream Out(TypeName);
+    LoadCXXThis()->getType()->print(Out);
+
+    /* TODO: provide blacklisting & selection here, also. */
+    if (CGM.getLangOpts().NoStdProtection &&
+        Vptr.Base.getBase()->isBelowStdNamespace()) {
+      diag.Report(DiagID) << "Skip initialisation" << Out.str();
+    } else {
+      diag.Report(DiagID) << "Initialisation" << Out.str();
+
+      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
+
+      for (unsigned replica = 0; replica < replicas; ++replica) {
+        std::string name("VTable");
+        name += std::to_string(replica);
+        {
+          /* get pointer to next VTable replica */
+          llvm::Value *ptr = VTableField.getPointer();
+          //ptr = Builder.CreateBitCast(ptr, Int8PtrTy);
+          ptr = Builder.CreateInBoundsGEP(ptr, Offset, name);
+          VTableField = Address(ptr, VTableField.getAlignment());
+        }
+        Store = Builder.CreateStore(VTableAddressPoint, VTableField);
+        
+        CGM.DecorateInstructionWithTBAA(Store, CGM.getTBAAInfoForVTablePtr());
+        if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+            CGM.getCodeGenOpts().StrictVTablePointers)
+          CGM.DecorateInstructionWithInvariantGroup(Store, Vptr.VTableClass);
+      }
+    }
+  }
 }
 
 CodeGenFunction::VPtrsVector
@@ -2563,6 +2606,127 @@ void CodeGenFunction::InitializeVTablePointers(const CXXRecordDecl *RD) {
 llvm::Value *CodeGenFunction::GetVTablePtr(Address This,
                                            llvm::Type *VTableTy,
                                            const CXXRecordDecl *RD) {
+#if 0
+llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
+                                           llvm::Type *Ty) {
+#endif
+  const unsigned replicas = CGM.getLangOpts().getVptrReplication();
+  if (replicas > 0) {
+    auto &&diag = CGM.getDiags();
+    unsigned DiagID =
+        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
+                                 ? DiagnosticsEngine::Level::Remark
+                                 : DiagnosticsEngine::Level::Ignored,
+                             "%0 check of TMR'ed VPtr in %1 in function %2");
+
+    std::string TypeName;
+    llvm::raw_string_ostream Out(TypeName);
+    VTableTy->print(Out);
+
+    /* TODO: add blacklisting for non-fault-tolerant libs */
+    const std::string std_class("class.std::");
+    const std::string std_struct("struct.std::");
+    const bool isInStd = Out.str().find(std_class) != std::string::npos ||
+                         Out.str().find(std_struct) != std::string::npos;
+    if (CGM.getLangOpts().NoStdProtection && isInStd) {
+      /* fall through to default */
+      diag.Report(DiagID) << "Skipping" << Out.str()
+                          << cast<const NamedDecl>(CurGD.getDecl());
+    } else {
+      diag.Report(DiagID) << "Generating" << Out.str()
+                          << cast<const NamedDecl>(CurGD.getDecl());
+
+      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
+      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
+      Address VTablePtrSrc0 = Builder.CreateElementBitCast(This, VTableTy);
+      Address VTablePtrSrc1(
+          Builder.CreateInBoundsGEP(VTablePtrSrc0.getPointer(), Offset),
+          This.getAlignment());
+
+      /* use volatile loads, because compiler can't see memory failures */
+      auto VTable0 = Builder.CreateLoad(VTablePtrSrc0, true, "vtable");
+      auto VTable1 = Builder.CreateLoad(VTablePtrSrc1, true);
+      CGM.DecorateInstructionWithTBAA(VTable0, CGM.getTBAAInfoForVTablePtr());
+      CGM.DecorateInstructionWithTBAA(VTable1, CGM.getTBAAInfoForVTablePtr());
+
+      if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+          CGM.getCodeGenOpts().StrictVTablePointers) {
+        CGM.DecorateInstructionWithInvariantGroup(VTable0, RD);
+        CGM.DecorateInstructionWithInvariantGroup(VTable1, RD);
+      }
+
+      llvm::Value *eq12 = Builder.CreateICmpEQ(VTable0, VTable1, "cmp12");
+
+      llvm::BasicBlock *ContBlock = createBasicBlock("vtable.check.cont");
+      llvm::BasicBlock *TrapBlock = createBasicBlock("vtable.check.trap");
+
+      if (replicas == LangOptions::DMR) {
+        Builder.CreateCondBr(eq12, ContBlock, TrapBlock);
+      } else { /* LangOptions::TMR */
+        Address VTablePtrSrc2(
+            Builder.CreateInBoundsGEP(VTablePtrSrc1.getPointer(), Offset),
+            This.getAlignment());
+
+        auto VTable2 = Builder.CreateLoad(VTablePtrSrc2, true);
+        CGM.DecorateInstructionWithTBAA(VTable2, CGM.getTBAAInfoForVTablePtr());
+        if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+            CGM.getCodeGenOpts().StrictVTablePointers)
+          CGM.DecorateInstructionWithInvariantGroup(VTable2, RD);
+
+        llvm::Value *eq13 = Builder.CreateICmpEQ(VTable0, VTable2, "cmp13");
+        llvm::Value *eq23 = Builder.CreateICmpEQ(VTable1, VTable2, "cmp23");
+
+        llvm::BasicBlock *IsRep3Faulty = createBasicBlock("vtable.check.test3");
+        llvm::BasicBlock *IsRep1Faulty = createBasicBlock("vtable.check.test1");
+        llvm::BasicBlock *IsRep2Faulty = createBasicBlock("vtable.check.test2");
+        llvm::BasicBlock *Repair1 = createBasicBlock("vtable.repair.1");
+        llvm::BasicBlock *Repair2 = createBasicBlock("vtable.repair.2");
+        llvm::BasicBlock *Repair3 = createBasicBlock("vtable.repair.3");
+
+        /*
+         * compare and fix, or fault if not recoverable
+         * compare all three copies, to avoid writing eagerly.
+         */
+        auto no_fault = Builder.CreateAnd(eq12, eq23);
+        Builder.CreateCondBr(no_fault, ContBlock, IsRep3Faulty);
+        EmitBlock(IsRep3Faulty);
+        Builder.CreateCondBr(eq12, Repair3, IsRep1Faulty);
+
+        EmitBlock(IsRep1Faulty);
+        Builder.CreateCondBr(eq23, Repair1, IsRep2Faulty);
+
+        EmitBlock(IsRep2Faulty);
+        Builder.CreateCondBr(eq13, Repair2, TrapBlock);
+
+        const auto TBAAInfo = CGM.getTBAAInfoForVTablePtr();
+        {
+          EmitBlock(Repair3);
+          auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc2);
+          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
+          EmitBranch(ContBlock);
+        }
+        {
+          EmitBlock(Repair2);
+          auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc1);
+          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
+          EmitBranch(ContBlock);
+        }
+        {
+          EmitBlock(Repair1);
+          auto Repair = Builder.CreateStore(VTable1, VTablePtrSrc0);
+          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
+          EmitBranch(ContBlock);
+        }
+      }
+
+      EmitBlock(TrapBlock);
+      Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+      Builder.CreateUnreachable();
+
+      EmitBlock(ContBlock);
+    }
+  }
+
   Address VTablePtrSrc = Builder.CreateElementBitCast(This, VTableTy);
   llvm::Instruction *VTable = Builder.CreateLoad(VTablePtrSrc, "vtable");
   CGM.DecorateInstructionWithTBAA(VTable, CGM.getTBAAInfoForVTablePtr());
