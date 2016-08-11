@@ -1789,7 +1789,23 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
 	EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
 
   llvm::Type *llvmTy = ConvertTypeForMem(Ty);
-  if (getLangOpts().ReplParm &&
+
+
+  bool repl = true;
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  // if(GD && GD->hasAttr<AnnotateAttr>()) {
+  //   for (const auto *I : GD->specific_attrs<AnnotateAttr>()) {
+  //     if (I->getAnnotation().str() == std::string("no-repl-parm")) {
+  //       repl = false;
+  //     }
+  //   }
+  // }
+
+  if(!GD || GD->isInlined()
+     || CurFn->hasFnAttribute(llvm::Attribute::InlineHint))
+    repl = false;
+
+  if (repl && getLangOpts().ReplParm &&
 	  // what about C89? no function/value found
 	  (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
       Ty->isPointerType() &&
