@@ -826,15 +826,6 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 {
   auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
 
-  // if(GD && GD->hasAttr<AnnotateAttr>()) {
-  //   for (const auto *I : GD->specific_attrs<AnnotateAttr>()) {
-  //     std::cout << I->getAnnotation().str() << std::endl;
-  //     if (I->getAnnotation().str() == std::string("no-repl-ret")) {
-  //       return;
-  //     }
-  //   }
-  // }
-
   if(!GD || GD->isInlined()
      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint))
     return;
@@ -865,15 +856,6 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
   auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
-
-  // if(GD && GD->hasAttr<AnnotateAttr>()) {
-  //   for (const auto *I : GD->specific_attrs<AnnotateAttr>()) {
-  //     if (I->getAnnotation().str() == std::string("no-repl-ret")) {
-  //       std::cout << I->getAnnotation().str() << std::endl;
-  //       return;
-  //     }
-  //   }
-  // }
 
   if(!GD || GD->isInlined()
      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint))
@@ -1277,15 +1259,6 @@ bool CodeGenFunction::isLambdaCaptured(const VarDecl *D) {
 void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
   auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
 
-  // if(GD && GD->hasAttr<AnnotateAttr>()) {
-  //   for (const auto *I : GD->specific_attrs<AnnotateAttr>()) {
-  //     std::cout << I->getAnnotation().str() << std::endl;
-  //     if (I->getAnnotation().str() == std::string("no-repl-parm")) {
-  //       return;
-  //     }
-  //   }
-  // }
-
   if(!GD || GD->isInlined()
      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint))
     return;
@@ -1379,15 +1352,6 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
 void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
                                                    RValue src, LValue dst) {
   auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
-
-  // if(GD && GD->hasAttr<AnnotateAttr>()) {
-  //   for (const auto *I : GD->specific_attrs<AnnotateAttr>()) {
-  //     std::cout << I->getAnnotation().str() << std::endl;
-  //     if (I->getAnnotation().str() == std::string("no-repl-parm")) {
-  //       return;
-  //     }
-  //   }
-  // }
 
   if(!GD || GD->isInlined()
      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint))
