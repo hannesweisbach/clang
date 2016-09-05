@@ -28,6 +28,7 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
@@ -794,6 +795,416 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
     EmitCompoundStmtWithoutScope(*S);
   else
     EmitStmt(Body);
+}
+
+/// Find all referenced DeclRefs in the expression E
+void CodeGenFunction::CollectDeclRefs(
+  const Expr* E,
+  SmallVectorImpl<const DeclRefExpr*>& declRefs) {
+  switch(E->getStmtClass()) {
+  default: return;
+  case Expr::ArraySubscriptExprClass: {
+    const ArraySubscriptExpr* ASE = cast<ArraySubscriptExpr>(E);
+    CollectDeclRefs(ASE->getLHS(), declRefs);
+    CollectDeclRefs(ASE->getRHS(), declRefs);
+    break;
+  }
+    // no const version?
+    // case aExpr::AtomicExprClass: {
+    //     const AtomicExpr* AE = cast<AtomicExpr>(E);
+    //     // clang-3.8
+    //     // for(unsigned int i = 0; i < AE->getNumSubExprs(); i++)
+    //     for(unsigned int i = 0; i < AE->getNumSubExprs(AE->getOp); i++)
+    //     {
+    //         CollectDeclRefs(AE->getSubExprs()[i], declRefs);
+    //     }
+    //     break;
+    // }
+  case Expr::BinaryConditionalOperatorClass: {
+    const BinaryConditionalOperator* BCO = cast<BinaryConditionalOperator>(E);
+    CollectDeclRefs(BCO->getCommon(), declRefs);
+    CollectDeclRefs(BCO->getOpaqueValue(), declRefs);
+    CollectDeclRefs(BCO->getCond(), declRefs);
+    CollectDeclRefs(BCO->getTrueExpr(), declRefs);
+    CollectDeclRefs(BCO->getFalseExpr(), declRefs);
+    break;
+  }
+  case Expr::BinaryOperatorClass: {
+    const BinaryOperator* BO = cast<BinaryOperator>(E);
+    CollectDeclRefs(BO->getLHS(), declRefs);
+    CollectDeclRefs(BO->getRHS(), declRefs);
+    break;
+  }
+  case Expr::CallExprClass:
+  case Expr::CXXMemberCallExprClass:
+  case Expr::CXXOperatorCallExprClass:
+  case Expr::UserDefinedLiteralClass: {
+    const CallExpr* CE = cast<CallExpr>(E);
+    for(unsigned int i = 0; i < CE->getNumArgs(); i++)
+    {
+      CollectDeclRefs(CE->getArg(i), declRefs);
+    }
+    break;
+  }
+  case Expr::ImplicitCastExprClass:
+  case Expr::CStyleCastExprClass:
+  case Expr::CXXFunctionalCastExprClass:
+  case Expr::CXXStaticCastExprClass:
+  case Expr::CXXDynamicCastExprClass:
+  case Expr::CXXReinterpretCastExprClass:
+  case Expr::CXXConstCastExprClass: {
+    const CastExpr* CE = cast<CastExpr>(E);
+    CollectDeclRefs(CE->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::ChooseExprClass: {
+    const ChooseExpr* CE = cast<ChooseExpr>(E);
+    CollectDeclRefs(CE->getLHS(), declRefs);
+    CollectDeclRefs(CE->getRHS(), declRefs);
+    CollectDeclRefs(CE->getCond(), declRefs);
+    break;
+  }
+  case Expr::CompoundLiteralExprClass: {
+    const CompoundLiteralExpr* CLE = cast<CompoundLiteralExpr>(E);
+    CollectDeclRefs(CLE->getInitializer(), declRefs);
+    break;
+  }
+  case Expr::ConditionalOperatorClass: {
+    const ConditionalOperator* CO = cast<ConditionalOperator>(E);
+    CollectDeclRefs(CO->getCond(), declRefs);
+    CollectDeclRefs(CO->getTrueExpr(), declRefs);
+    CollectDeclRefs(CO->getFalseExpr(), declRefs);
+    break;
+  }
+  case Expr::ConvertVectorExprClass: {
+    const ConvertVectorExpr* CVE = cast<ConvertVectorExpr>(E);
+    CollectDeclRefs(CVE->getSrcExpr(), declRefs);
+    break;
+  }
+  case Expr::CXXBindTemporaryExprClass: {
+    const CXXBindTemporaryExpr* BTE = cast<CXXBindTemporaryExpr>(E);
+    CollectDeclRefs(BTE->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::CXXConstructExprClass: {
+    const CXXConstructExpr* CE = cast<CXXConstructExpr>(E);
+    for(unsigned int i = 0; i < CE->getNumArgs(); i++)
+    {
+      CollectDeclRefs(CE->getArg(i), declRefs);
+    }
+    break;
+  }
+  case Expr::CXXDefaultArgExprClass: {
+    const CXXDefaultArgExpr* DAE = cast<CXXDefaultArgExpr>(E);
+    CollectDeclRefs(DAE->getExpr(), declRefs);
+    break;
+  }
+  case Expr::CXXDefaultInitExprClass: {
+    const CXXDefaultInitExpr* DIE = cast<CXXDefaultInitExpr>(E);
+    CollectDeclRefs(DIE->getExpr(), declRefs);
+    break;
+  }
+  case Expr::CXXFoldExprClass: {
+    const CXXFoldExpr* FE = cast<CXXFoldExpr>(E);
+    CollectDeclRefs(FE->getLHS(), declRefs);
+    CollectDeclRefs(FE->getRHS(), declRefs);
+    break;
+  }
+  case Expr::CXXStdInitializerListExprClass: {
+    const CXXStdInitializerListExpr* SILE = cast<CXXStdInitializerListExpr>(E);
+    CollectDeclRefs(SILE->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::CXXTypeidExprClass: {
+    const CXXTypeidExpr* TIDE = cast<CXXTypeidExpr>(E);
+    if(TIDE->isTypeOperand()) break;
+    CollectDeclRefs(TIDE->getExprOperand(), declRefs);
+    break;
+  }
+  case Expr::CXXUuidofExprClass: {
+    const CXXUuidofExpr* UUIDE = cast<CXXUuidofExpr>(E);
+    CollectDeclRefs(UUIDE->getExprOperand(), declRefs);
+    break;
+  }
+  case Expr::ExprWithCleanupsClass: {
+    const ExprWithCleanups* EWC = cast<ExprWithCleanups>(E);
+    CollectDeclRefs(EWC->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::ExtVectorElementExprClass: {
+    const ExtVectorElementExpr* EVEE = cast<ExtVectorElementExpr>(E);
+    CollectDeclRefs(EVEE->getBase(), declRefs);
+    break;
+  }
+  case Expr::GenericSelectionExprClass: {
+    const GenericSelectionExpr* GSE = cast<GenericSelectionExpr>(E);
+    for(unsigned int i = 0; i < GSE->getNumAssocs(); i++)
+    {
+      CollectDeclRefs(GSE->getAssocExpr(i), declRefs);
+    }
+    CollectDeclRefs(GSE->getControllingExpr(), declRefs);
+    break;
+  }
+  case Expr::InitListExprClass: {
+    const InitListExpr* ILE = cast<InitListExpr>(E);
+    for(unsigned int i = 0; i < ILE->getNumInits(); i++)
+    {
+      CollectDeclRefs(ILE->getInit(i), declRefs);
+    }
+    break;
+  }
+  case Expr::MaterializeTemporaryExprClass: {
+    const MaterializeTemporaryExpr* MTE = cast<MaterializeTemporaryExpr>(E);
+    CollectDeclRefs(MTE->GetTemporaryExpr(), declRefs);
+    break;
+  }
+  case Expr::MemberExprClass: {
+    const MemberExpr* ME = cast<MemberExpr>(E);
+    CollectDeclRefs(ME->getBase(), declRefs);
+    break;
+  }
+  case Expr::MSPropertyRefExprClass: {
+    const MSPropertyRefExpr* MSPRE = cast<MSPropertyRefExpr>(E);
+    CollectDeclRefs(MSPRE->getBaseExpr(), declRefs);
+    break;
+  }
+    // clang-3.8
+    // case Expr::MSPropertySubscriptExprClass: {
+    //     const MSPropertySubscriptExpr* MSPSE = cast<MSPropertySubscriptExpr>(E);
+    //     CollectDeclRefs(MSPSE->getBase(), declRefs);
+    //     CollectDeclRefs(MSPSE->getIdx(), declRefs);
+    //     break;
+    // }
+  case Expr::OffsetOfExprClass: {
+    const OffsetOfExpr* OOE = cast<OffsetOfExpr>(E);
+    for(unsigned int i = 0; i < OOE->getNumExpressions(); i++)
+    {
+      CollectDeclRefs(OOE->getIndexExpr(i), declRefs);
+    }
+    break;
+  }
+    // clang-3.8
+    // case Expr::OMPArraySectionExprClass: {
+    //     const OMPArraySectionExpr* OMPASE = cast<OMPArraySectionExpr>(E);
+    //     CollectDeclRefs(OMPASE->getBase(), declRefs);
+    //     CollectDeclRefs(OMPASE->getLowerBound(), declRefs);
+    //     CollectDeclRefs(OMPASE->getLength(), declRefs);
+    //     break;
+    // }
+  case Expr::OpaqueValueExprClass: {
+    const OpaqueValueExpr* OVE = cast<OpaqueValueExpr>(E);
+    const Expr* SE = OVE->getSourceExpr();
+    if(SE) CollectDeclRefs(SE, declRefs);
+    break;
+  }
+  case Expr::PackExpansionExprClass: {
+    const PackExpansionExpr* PEE = cast<PackExpansionExpr>(E);
+    CollectDeclRefs(PEE->getPattern(), declRefs);
+    break;
+  }
+  case Expr::ParenExprClass: {
+    const ParenExpr* PE = cast<ParenExpr>(E);
+    CollectDeclRefs(PE->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::ParenListExprClass: {
+    const ParenListExpr* PLE = cast<ParenListExpr>(E);
+    for(unsigned int i = 0; i < PLE->getNumExprs(); i++)
+    {
+      CollectDeclRefs(PLE->getExpr(i), declRefs);
+    }
+    break;
+  }
+  case Expr::PseudoObjectExprClass: {
+    const PseudoObjectExpr* POE = cast<PseudoObjectExpr>(E);
+    for(unsigned int i = 0; i < POE->getNumSemanticExprs(); i++)
+    {
+      CollectDeclRefs(POE->getSemanticExpr(i), declRefs);
+    }
+    break;
+  }
+  case Expr::ShuffleVectorExprClass: {
+    const ShuffleVectorExpr* SVE = cast<ShuffleVectorExpr>(E);
+    for(unsigned int i = 0; i < SVE->getNumSubExprs(); i++)
+    {
+      CollectDeclRefs(SVE->getExpr(i), declRefs);
+    }
+    break;
+  }
+  case Expr::SubstNonTypeTemplateParmExprClass: {
+    const SubstNonTypeTemplateParmExpr* SNTTPE =
+      cast<SubstNonTypeTemplateParmExpr>(E);
+    CollectDeclRefs(SNTTPE->getReplacement(), declRefs);
+    break;
+  }
+  case Expr::UnaryExprOrTypeTraitExprClass: {
+    const UnaryExprOrTypeTraitExpr* UEOTTE = cast<UnaryExprOrTypeTraitExpr>(E);
+    if (!UEOTTE->isArgumentType())
+      CollectDeclRefs(UEOTTE->getArgumentExpr(), declRefs);
+    break;
+  }
+  case Expr::UnaryOperatorClass: {
+    const UnaryOperator* UO = cast<UnaryOperator>(E);
+    CollectDeclRefs(UO->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::VAArgExprClass: {
+    const VAArgExpr* VAAE = cast<VAArgExpr>(E);
+    CollectDeclRefs(VAAE->getSubExpr(), declRefs);
+    break;
+  }
+  case Expr::DeclRefExprClass: {
+    const DeclRefExpr* DRE = cast<DeclRefExpr>(E);
+    declRefs.push_back(DRE);
+    break;
+  }
+  }
+}
+
+/// Update the values of all parameter replicas referenced by expression E
+/// Value might have been changed outside our control
+void CodeGenFunction::UpdateReplicaPVDRefs(const Expr *E) {
+  SmallVector<const DeclRefExpr*, 4> declRefs;
+  CollectDeclRefs(E, declRefs);
+
+  for (auto *DRE : declRefs) {
+    if (doReplParmCheck(DRE)) {
+      LValue LV = EmitCheckedLValue(DRE, CodeGenFunction::TCK_Store);
+      RValue RV = EmitLoadOfLValue(LV, DRE->getExprLoc());
+
+      const ParmVarDecl *PVD = cast<ParmVarDecl>(DRE->getDecl());
+      EmitPointerParmReplicaUpdate(PVD, RV, LV);
+    }
+  }
+}
+
+/// Update the value of all parameter replicas captured by declaration MD
+/// Value might have been changed outside our control
+void CodeGenFunction::UpdateReplicaRefCapturedPVDs(const CXXMethodDecl* MD) {
+  if (MD && MD->getParent()->isLambda()) {
+    for (auto const& caps : MD->getParent()->captures()) {
+      if (caps.getCaptureKind() != LCK_ByRef) continue;
+
+      if (ParmVarDecl* PVD = dyn_cast<ParmVarDecl>(caps.getCapturedVar())) {
+        if (!ParmDeclMap.count(PVD)) continue;
+
+        llvm::Value *V = LocalDeclMap.lookup(PVD);
+        CharUnits Alignment = getContext().getDeclAlign(PVD);
+        QualType T = PVD->getType();
+        LValue LV = MakeAddrLValue(V, T, Alignment);
+        RValue RV = EmitLoadOfLValue(LV, SourceLocation());
+        EmitPointerParmReplicaUpdate(PVD, RV, LV);
+      }
+    }
+  }
+}
+
+bool CodeGenFunction::doReplParmCheck(const DeclRefExpr* E) {
+  return getLangOpts().ReplParm &&
+    (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
+    E && isa<ParmVarDecl>(E->getDecl()) &&
+    E->getDecl()->getType()->isPointerType() &&
+    // if we are in a lambda, PVDs of enclosing function might have been
+    // captured, but are not in ParmDeclMap of the current (lambda) function
+    !isLambdaCaptured(cast<VarDecl>(E->getDecl())) &&
+    !E->refersToEnclosingVariableOrCapture();
+}
+
+bool CodeGenFunction::isLambdaCaptured(const VarDecl *D) {
+  return LambdaCaptureFields.count(D);
+}
+
+/// Emit code to check if the replicated values of the parameter corresponding
+/// to the DeclRefExpr E are still consistent.
+/// The "this" pointer is currently not checked.
+/// If we are in a lambda function, captured variables corresponding to a
+/// pointer parameter of the enclosing are not checked
+void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
+  const ParmVarDecl *PVD = cast<ParmVarDecl>(E->getDecl());
+  assert(ParmDeclMap.count(PVD) &&
+         "Pointer parameter not entered in ParmDeclMap?");
+  assert(std::get<0>(*PVD->repls) &&
+         "Pointer parameter not entered in ParmVarDecl?");
+
+  llvm::FunctionType *dbgFuncTy =
+    llvm::FunctionType::get(Builder.getVoidTy(),
+                            {}, false);
+  std::string asmTrap =
+    "int3;"
+    "jmp 1f;"
+    ".ascii \"Invalid value for function parameter, aborting...\";"
+    "1:";
+  llvm::InlineAsm *funcTrap =
+    llvm::InlineAsm::get(dbgFuncTy, asmTrap, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  std::string asmRestore =
+    "int3;"
+    "nop;"
+    "jmp 1f;"
+    ".ascii \"Invalid value for function parameter, restoring...\";"
+    "1:";
+  llvm::InlineAsm *funcRestore =
+    llvm::InlineAsm::get(dbgFuncTy, asmRestore, "",
+                         false, false,
+                         llvm::InlineAsm::AD_ATT);
+
+  auto ty1 = std::get<0>(*PVD->repls)->getType()->getContainedType(0);
+  auto ty2 = std::get<0>(*PVD->repls)->getType();
+  auto loadPtr = CGM.getIntrinsic(llvm::Intrinsic::load_ptr, {ty1, ty2});
+  auto storePtr = CGM.getIntrinsic(llvm::Intrinsic::store_ptr, {ty1, ty2});
+
+  auto ContBlock = createBasicBlock("repl.parm.true.cont");
+  auto Check13Fail = createBasicBlock("repl.parm.check13.fail");
+  auto Check23Fail = createBasicBlock("repl.parm.check23.fail");
+  auto TrapBlock = createBasicBlock("repl.parm.false.trap");
+  auto RestoreParm = createBasicBlock("repl.parm.restore");
+
+  auto V = Builder.CreateLoad(std::get<0>(*PVD->repls), "parm");
+  auto replParm1 = Builder.CreateCall(loadPtr, std::get<1>(*PVD->repls),
+                                      "replParm1");
+  auto eq13 = Builder.CreateICmpEQ(V, replParm1, "comp13");
+  Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
+
+  EmitBlock(TrapBlock);
+  if (CGM.getLangOpts().ReplParmDbg)
+    Builder.CreateCall(funcTrap, {});
+  Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
+  Builder.CreateUnreachable();
+
+  EmitBlock(Check13Fail);
+  auto replParm2 = Builder.CreateCall(loadPtr, std::get<2>(*PVD->repls),
+                                      "replParm2");
+  auto eq23 = Builder.CreateICmpEQ(V, replParm2, "comp23");
+  Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
+
+  EmitBlock(Check23Fail);
+  auto eq12 = Builder.CreateICmpEQ(replParm1, replParm2, "comp12");
+  Builder.CreateCondBr(eq12, RestoreParm, TrapBlock);
+
+  EmitBlock(RestoreParm);
+  if (CGM.getLangOpts().ReplParmDbg)
+    Builder.CreateCall(funcRestore, {});
+  Builder.CreateCall(storePtr, {replParm1, std::get<0>(*PVD->repls)});
+
+  EmitBlock(ContBlock);
+}
+
+/// Emit code to update the replicas of a pointer argument after its value
+/// has been changed (or potentially changed)
+void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
+                                                   RValue src, LValue dst) {
+  assert(ParmDeclMap.count(PVD) &&
+         "Pointer parameter not entered in ParmDeclMap?");
+  assert(std::get<0>(*PVD->repls) &&
+         "Pointer parameter not entered in ParmDeclMap?");
+
+  auto ty1 = std::get<0>(*PVD->repls)->getType()->getContainedType(0);
+  auto ty2 = std::get<0>(*PVD->repls)->getType();
+  auto storePtr = CGM.getIntrinsic(llvm::Intrinsic::store_ptr, {ty1, ty2});
+  Builder.CreateCall(storePtr, {src.getScalarVal(), std::get<1>(*PVD->repls)});
+  Builder.CreateCall(storePtr, {src.getScalarVal(), std::get<2>(*PVD->repls)});
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
