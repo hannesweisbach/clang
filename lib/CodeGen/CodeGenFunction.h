@@ -169,6 +169,10 @@ public:
   /// value. This is invalid iff the function has no return value.
   Address ReturnValue;
 
+  /// Replicated return address
+  Address retAddrLoc1;
+  Address retAddrLoc2;
+
   /// AllocaInsertPoint - This is an instruction in the entry block before which
   /// we prefer to insert allocas.
   llvm::AssertingVH<llvm::Instruction> AllocaInsertPt;
@@ -1405,6 +1409,8 @@ public:
   void EmitPointerParmReplicaCheck(const DeclRefExpr *E);
   void EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD, RValue src,
                                     LValue dst);
+  void EmitReplicateReturnProlog();
+  void EmitReplicateReturnEpilog();
   void EmitFunctionBody(FunctionArgList &Args, const Stmt *Body);
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 

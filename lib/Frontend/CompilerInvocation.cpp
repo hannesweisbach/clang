@@ -1989,6 +1989,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   }
   Opts.ProtectVptrExtended = Args.hasArg(OPT_fprotect_vptr_extended);
   Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
+  Opts.ReplReturn = Args.hasArg(OPT_frepl_return);
+  Opts.ReplReturnDbg = Args.hasArg(OPT_frepl_return_dbg);
 
   // For now, we only support local submodule visibility in C++ (because we
   // heavily depend on the ODR for merging redefinitions).
