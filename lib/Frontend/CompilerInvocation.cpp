@@ -1962,6 +1962,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Args.hasFlag(OPT_fdeclspec, OPT_fno_declspec,
                    (Opts.MicrosoftExt || Opts.Borland || Opts.CUDA));
 
+  Opts.ReplReturn = Args.hasArg(OPT_frepl_return);
+  Opts.ReplReturnDbg = Args.hasArg(OPT_frepl_return_dbg);
+
   // For now, we only support local submodule visibility in C++ (because we
   // heavily depend on the ODR for merging redefinitions).
   if (Opts.ModulesLocalVisibility && !Opts.CPlusPlus)

@@ -4674,6 +4674,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (getToolChain().getTriple().isPS4CPU())
     addPS4ProfileRTArgs(getToolChain(), Args, CmdArgs);
 
+  if (Args.hasArg(options::OPT_frepl_return))
+    CmdArgs.push_back("-frepl-return");
+
+  if (Args.hasArg(options::OPT_frepl_return_dbg)) {
+      CmdArgs.push_back("-frepl-return");
+      CmdArgs.push_back("-frepl-return-dbg");
+  }
+
   // Pass options for controlling the default header search paths.
   if (Args.hasArg(options::OPT_nostdinc)) {
     CmdArgs.push_back("-nostdsysteminc");
