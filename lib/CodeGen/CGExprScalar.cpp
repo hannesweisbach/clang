@@ -274,6 +274,10 @@ public:
                                 E->getExprLoc());
       return result.getValue();
     }
+
+    // check copies if replicated parm is to be used
+    if (CGF.doReplParmCheck(E))
+      CGF.EmitPointerParmReplicaCheck(E);
     return EmitLoadOfLValue(E);
   }
 
@@ -1841,8 +1845,16 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   // Store the updated result through the lvalue.
   if (LV.isBitField())
     CGF.EmitStoreThroughBitfieldLValue(RValue::get(value), LV, &value);
-  else
+  else {
     CGF.EmitStoreThroughLValue(RValue::get(value), LV);
+
+    // update copies after replicated parm has been modified
+    DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getSubExpr());
+    if (exp && CGF.doReplParmCheck(exp)) {
+      const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
+      CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(value), LV);
+    }
+  }
 
   // If this is a postinc, return the value read from memory, otherwise use the
   // updated value.
@@ -2198,8 +2210,16 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   // assignment...'.
   if (LHSLV.isBitField())
     CGF.EmitStoreThroughBitfieldLValue(RValue::get(Result), LHSLV, &Result);
-  else
+  else {
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
+
+    // update copies after replicated parm has been modified
+    DeclRefExpr* exp = dyn_cast<DeclRefExpr>(E->getLHS());
+    if (exp && CGF.doReplParmCheck(exp)) {
+      const ParmVarDecl *PVD = cast<ParmVarDecl>(exp->getDecl());
+      CGF.EmitPointerParmReplicaUpdate(PVD, RValue::get(Result), LHSLV);
+    }
+  }
 
   return LHSLV;
 }
@@ -3006,8 +3026,14 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     // the assignment...'.
     if (LHS.isBitField())
       CGF.EmitStoreThroughBitfieldLValue(RValue::get(RHS), LHS, &RHS);
-    else
+    else {
       CGF.EmitStoreThroughLValue(RValue::get(RHS), LHS);
+
+      if (CGF.getLangOpts().ReplParm) {
+        // update copies after replicated parm has been modified
+        CGF.UpdateReplicaPVDRefs(E->getLHS());
+      }
+    }
   }
 
   // If the result is clearly ignored, return now.
