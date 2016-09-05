@@ -1631,6 +1631,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.ProtectVptrExtended = Args.hasArg(OPT_fprotect_vptr_extended);
   Opts.VerboseFaultTolerance = Args.hasArg(OPT_fverbose_fault_tolerance);
 
+  Opts.ReplReturn = Args.hasArg(OPT_frepl_return);
+  Opts.ReplReturnDbg = Args.hasArg(OPT_frepl_return_dbg);
+
   if (!Opts.CurrentModule.empty() && !Opts.ImplementationOfModule.empty() &&
       Opts.CurrentModule != Opts.ImplementationOfModule) {
     Diags.Report(diag::err_conflicting_module_names)
