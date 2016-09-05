@@ -3747,6 +3747,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);
 
+  if (Args.hasArg(options::OPT_fverbose_fault_tolerance))
+    CmdArgs.push_back("-fverbose-fault-tolerance");
+
+  if (Args.hasArg(options::OPT_frepl_return))
+    CmdArgs.push_back("-frepl-return");
+
+  if (Args.hasArg(options::OPT_frepl_return_dbg))
+  {
+      CmdArgs.push_back("-frepl-return");
+      CmdArgs.push_back("-frepl-return-dbg");
+  }
+
   // Pass options for controlling the default header search paths.
   if (Args.hasArg(options::OPT_nostdinc)) {
     CmdArgs.push_back("-nostdsysteminc");
