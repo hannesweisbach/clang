@@ -295,7 +295,7 @@ public:
   bool isVolatile() const {
     return Quals.hasVolatile();
   }
-  
+
   Expr *getBaseIvarExp() const { return BaseIvarExp; }
   void setBaseIvarExp(Expr *V) { BaseIvarExp = V; }
 

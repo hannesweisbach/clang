@@ -1857,6 +1857,24 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   if (DoStore)
     EmitStoreOfScalar(ArgVal, lv, /* isInitialization */ true);
 
+  bool repl = getLangOpts().ReplParm &&
+    (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
+    Ty->isPointerType() &&
+    // no this pointer for now
+    !isa<ImplicitParamDecl>(D);
+  if (repl) {
+    Address ptr1 = CreateMemTemp(Ty, getContext().getDeclAlign(&D),
+                                 D.getName() + ".addrrepl1");
+    Address ptr2 = CreateMemTemp(Ty, getContext().getDeclAlign(&D),
+                                 D.getName() + ".addrrepl2");
+    LValue repl1 = MakeAddrLValue(ptr1, Ty);
+    EmitStoreOfScalar(ArgVal, repl1, true);
+    LValue repl2 = MakeAddrLValue(ptr2, Ty);
+    EmitStoreOfScalar(ArgVal, repl2, true);
+
+    ParmDeclMap.insert(std::make_pair(&D, std::make_pair(ptr1, ptr2)));
+  }
+
   setAddrOfLocalVar(&D, DeclPtr);
 
   // Emit debug info for param declaration.
