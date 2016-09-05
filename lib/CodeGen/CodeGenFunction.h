@@ -887,6 +887,10 @@ private:
   typedef llvm::DenseMap<const Decl*, llvm::Value*> DeclMapTy;
   DeclMapTy LocalDeclMap;
 
+  /// ParmDeclMap - Keeps track of LLVM allocas + replicas for parameter values
+  typedef llvm::DenseMap<const Decl*, std::pair<llvm::Value*,llvm::Value*>> ParmDeclMapTy;
+  ParmDeclMapTy ParmDeclMap;
+
   /// Track escaped local variables with auto storage. Used during SEH
   /// outlining to produce a call to llvm.localescape.
   llvm::DenseMap<llvm::AllocaInst *, int> EscapedLocals;
@@ -1264,6 +1268,15 @@ public:
   void EmitConstructorBody(FunctionArgList &Args);
   void EmitDestructorBody(FunctionArgList &Args);
   void emitImplicitAssignmentOperatorBody(FunctionArgList &Args);
+  void CollectDeclRefs(const Expr *E,
+                       SmallVectorImpl<const DeclRefExpr*> &declRefs);
+  void UpdateReplicaPVDRefs(const Expr *E);
+  void UpdateReplicaRefCapturedPVDs(const CXXMethodDecl* MD);
+  bool doReplParmCheck(const DeclRefExpr* E);
+  bool isLambdaCaptured(const VarDecl *D);
+  void EmitPointerParmReplicaCheck(const DeclRefExpr *E);
+  void EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD, RValue src,
+                                    LValue dst);
   void EmitFunctionBody(FunctionArgList &Args, const Stmt *Body);
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 

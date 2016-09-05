@@ -1785,7 +1785,32 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
 
   // Store the initial value into the alloca.
   if (DoStore)
-    EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
+	EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
+
+  llvm::Type *llvmTy = ConvertTypeForMem(Ty);
+  if (getLangOpts().ReplParm &&
+	  // what about C89? no function/value found
+	  (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
+      Ty->isPointerType() &&
+      // no this pointer for now
+      !isa<ImplicitParamDecl>(D)) {
+    llvm::AllocaInst *ptr1 = CreateTempAlloca(llvmTy,
+                                              D.getName() + ".addrrepl1");
+    ptr1->setAlignment(Align.getQuantity());
+    llvm::AllocaInst *ptr2 = CreateTempAlloca(llvmTy,
+                                              D.getName() + ".addrrepl2");
+    ptr2->setAlignment(Align.getQuantity());
+    LValue repl1 = MakeAddrLValue(ptr1, Ty, Align);
+    EmitStoreOfScalar(Arg, repl1, true);
+    LValue repl2 = MakeAddrLValue(ptr2, Ty, Align);
+    EmitStoreOfScalar(Arg, repl2, true);
+
+    ParmDeclMap[&D] = std::make_pair(ptr1, ptr2);
+    auto* PD = cast<ParmVarDecl>(&D);
+    std::get<0>(*PD->repls) = DeclPtr;
+    std::get<1>(*PD->repls) = ptr1;
+    std::get<2>(*PD->repls) = ptr2;
+  }
 
   llvm::Value *&DMEntry = LocalDeclMap[&D];
   assert(!DMEntry && "Decl already exists in localdeclmap!");

@@ -3759,6 +3759,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_fprotect_vptr_extended))
     CmdArgs.push_back("-fprotect-vptr-extended");
 
+  if (Args.hasArg(options::OPT_frepl_parm))
+      CmdArgs.push_back("-frepl-parm");
+
+  if (Args.hasArg(options::OPT_frepl_parm_dbg)) {
+      CmdArgs.push_back("-frepl-parm");
+      CmdArgs.push_back("-frepl-parm-dbg");
+  }
+
   // Pass options for controlling the default header search paths.
   if (Args.hasArg(options::OPT_nostdinc)) {
     CmdArgs.push_back("-nostdsysteminc");
