@@ -1235,6 +1235,12 @@ bool CodeGenFunction::isLambdaCaptured(const VarDecl *D) {
 /// If we are in a lambda function, captured variables corresponding to a
 /// pointer parameter of the enclosing are not checked
 void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    return;
+
   const ParmVarDecl *PVD = cast<ParmVarDecl>(E->getDecl());
   assert(ParmDeclMap.count(PVD) &&
          "Pointer parameter not entered in ParmDeclMap?");
@@ -1313,6 +1319,12 @@ void CodeGenFunction::EmitPointerParmReplicaCheck(const DeclRefExpr *E) {
 /// has been changed (or potentially changed)
 void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
                                                    RValue src, LValue dst) {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+     return;
+
   assert(ParmDeclMap.count(PVD) &&
          "Pointer parameter not entered in ParmDeclMap?");
 

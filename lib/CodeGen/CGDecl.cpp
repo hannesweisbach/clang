@@ -1862,6 +1862,11 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     Ty->isPointerType() &&
     // no this pointer for now
     !isa<ImplicitParamDecl>(D);
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    repl = false;
   if (repl) {
     Address ptr1 = CreateMemTemp(Ty, getContext().getDeclAlign(&D),
                                  D.getName() + ".addrrepl1");
