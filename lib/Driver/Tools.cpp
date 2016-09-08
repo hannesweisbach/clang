@@ -3747,6 +3747,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);
 
+  if (Args.hasArg(options::OPT_fno_repl_inline))
+    CmdArgs.push_back("-fno-repl-inline");
+
   if (Args.hasArg(options::OPT_frepl_parm))
       CmdArgs.push_back("-frepl-parm");
 

@@ -1602,6 +1602,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NativeHalfType |= Args.hasArg(OPT_fnative_half_type);
   Opts.HalfArgsAndReturns = Args.hasArg(OPT_fallow_half_arguments_and_returns);
   Opts.GNUAsm = !Args.hasArg(OPT_fno_gnu_inline_asm);
+  Opts.NoReplInline = Args.hasArg(OPT_fno_repl_inline);
   Opts.ReplParm = Args.hasArg(OPT_frepl_parm);
   Opts.ReplParmDbg = Args.hasArg(OPT_frepl_parm_dbg);
 
