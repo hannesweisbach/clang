@@ -1097,6 +1097,8 @@ def frepl_parm : Flag<["-"], "frepl-parm">, Group<f_Group>, Flags<[CC1Option]>,
 def frepl_parm_dbg : Flag<["-"], "frepl-parm-dbg">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Turn on TMR-protection for function parameters and insert int3 instruction for debugging">;
 def frtti : Flag<["-"], "frtti">, Group<f_Group>;
+def fno_repl_inline : Flag<["-"], "fno-repl-inline">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Disable TMR-protection for inline functions">;
 def : Flag<["-"], "fsched-interblock">, Group<clang_ignored_f_Group>;
 def fshort_enums : Flag<["-"], "fshort-enums">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Allocate to an enum type only as many bytes as it needs for the declared range of possible values">;

@@ -263,6 +263,8 @@ LANGOPT(SanitizeAddressFieldPadding, 2, 0, "controls how aggressive is ASan "
 COMPATIBLE_LANGOPT(ReplParm, 1, 0, "TMR-protect function parameters")
 COMPATIBLE_LANGOPT(ReplParmDbg, 1, 0, "TMR-protect function parameters, inserts int3 instruction for debugging")
 
+COMPATIBLE_LANGOPT(NoReplInline, 1, 0, "TMR-protect inline functions")
+
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT
 #undef BENIGN_LANGOPT
