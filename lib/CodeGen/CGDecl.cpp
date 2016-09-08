@@ -1787,13 +1787,18 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, llvm::Value *Arg,
   if (DoStore)
 	EmitStoreOfScalar(Arg, lv, /* isInitialization */ true);
 
-  llvm::Type *llvmTy = ConvertTypeForMem(Ty);
-  if (getLangOpts().ReplParm &&
-	  // what about C89? no function/value found
-	  (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
-      Ty->isPointerType() &&
-      // no this pointer for now
-      !isa<ImplicitParamDecl>(D)) {
+  bool repl = getLangOpts().ReplParm &&
+    (getLangOpts().C99 || getLangOpts().C11 || getLangOpts().CPlusPlus) &&
+    Ty->isPointerType() &&
+    // no this pointer for now
+    !isa<ImplicitParamDecl>(D);
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    repl = false;
+  if (repl) {
+    llvm::Type *llvmTy = ConvertTypeForMem(Ty);
     llvm::AllocaInst *ptr1 = CreateTempAlloca(llvmTy,
                                               D.getName() + ".addrrepl1");
     ptr1->setAlignment(Align.getQuantity());
