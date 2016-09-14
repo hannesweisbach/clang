@@ -1363,6 +1363,13 @@ void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
                       ParmDeclMap.find(PVD)->second.second.getPointer()});
 }
 
+static bool hasOmitReplReturn(const Decl *D) {
+  if (D)
+    return D->hasAttr<OmitReplReturnAttr>();
+  else
+    return false;
+}
+
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
   if (hasOmitReplReturn(CurCodeDecl))
