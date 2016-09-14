@@ -2054,3 +2054,8 @@ def OMPThreadPrivateDecl : InheritableAttr {
   let SemaHandler = 0;
   let Documentation = [Undocumented];
 }
+
+def OmitReplReturn : InheritableAttr {
+  let Spellings = [GNU<"omit_repl_return">];
+  let Documentation = [Undocumented];
+}
