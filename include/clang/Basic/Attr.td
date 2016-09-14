@@ -2402,3 +2402,8 @@ def InternalLinkage : InheritableAttr {
   let Subjects = SubjectList<[Var, Function, CXXRecord]>;
   let Documentation = [InternalLinkageDocs];
 }
+
+def OmitReplReturn : InheritableAttr {
+  let Spellings = [GNU<"omit_repl_return">];
+  let Documentation = [Undocumented];
+}

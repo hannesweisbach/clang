@@ -936,8 +936,18 @@ void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
     EmitStmt(Body);
 }
 
+static bool hasOmitReplReturn(const Decl *D) {
+  if (D)
+    return D->hasAttr<OmitReplReturnAttr>();
+  else
+    return false;
+}
+
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
+  if (hasOmitReplReturn(CurCodeDecl))
+    return;
+
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
   QualType int8ty = getContext().CharTy.withConst();
@@ -952,6 +962,9 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
+  if (hasOmitReplReturn(CurCodeDecl))
+    return;
+
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto setRA = CGM.getIntrinsic(llvm::Intrinsic::setreturnaddress);
 
