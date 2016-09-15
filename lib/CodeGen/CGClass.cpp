@@ -2483,7 +2483,7 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
         diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
                                  ? DiagnosticsEngine::Level::Remark
                                  : DiagnosticsEngine::Level::Ignored,
-                             "%0 of TMR'ed VPtr in %1");
+                             "%0 of replicated VPtr in %2");
 
     std::string TypeName;
     llvm::raw_string_ostream Out(TypeName);
@@ -2496,25 +2496,12 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
     } else {
       diag.Report(DiagID) << "Initialisation" << Out.str();
 
-      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
-      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
-
       for (unsigned replica = 0; replica < replicas; ++replica) {
-        std::string name("VTable");
-        name += std::to_string(replica);
-        {
-          /* get pointer to next VTable replica */
-          llvm::Value *ptr = VTableField.getPointer();
-          //ptr = Builder.CreateBitCast(ptr, Int8PtrTy);
-          ptr = Builder.CreateInBoundsGEP(ptr, Offset, name);
-          VTableField = Address(ptr, VTableField.getAlignment());
-        }
-        Store = Builder.CreateStore(VTableAddressPoint, VTableField);
-        
-        CGM.DecorateInstructionWithTBAA(Store, CGM.getTBAAInfoForVTablePtr());
-        if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-            CGM.getCodeGenOpts().StrictVTablePointers)
-          CGM.DecorateInstructionWithInvariantGroup(Store, Vptr.VTableClass);
+        accessVTableReplica(
+            VTableField, Vptr.VTableClass, replica + 1,
+            [&VTableAddressPoint, this](const Address &VTableReplica) {
+              return Builder.CreateStore(VTableAddressPoint, VTableReplica);
+            });
       }
     }
   }
@@ -2606,18 +2593,14 @@ void CodeGenFunction::InitializeVTablePointers(const CXXRecordDecl *RD) {
 llvm::Value *CodeGenFunction::GetVTablePtr(Address This,
                                            llvm::Type *VTableTy,
                                            const CXXRecordDecl *RD) {
-#if 0
-llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
-                                           llvm::Type *Ty) {
-#endif
   const unsigned replicas = CGM.getLangOpts().getVptrReplication();
   if (replicas > 0) {
     auto &&diag = CGM.getDiags();
-    unsigned DiagID =
-        diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
-                                 ? DiagnosticsEngine::Level::Remark
-                                 : DiagnosticsEngine::Level::Ignored,
-                             "%0 check of TMR'ed VPtr in %1 in function %2");
+    unsigned DiagID = diag.getCustomDiagID(
+        CGM.getLangOpts().VerboseFaultTolerance
+            ? DiagnosticsEngine::Level::Remark
+            : DiagnosticsEngine::Level::Ignored,
+        "%0 check of replicated VPtr in %1 in function %2");
 
     std::string TypeName;
     llvm::raw_string_ostream Out(TypeName);
@@ -2635,27 +2618,16 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
     } else {
       diag.Report(DiagID) << "Generating" << Out.str()
                           << cast<const NamedDecl>(CurGD.getDecl());
-
-      const int offset = (CGM.getLangOpts().ProtectVptrExtended) ? 2 : 1;
-      llvm::Value *Offset = llvm::ConstantInt::get(PtrDiffTy, offset);
-      Address VTablePtrSrc0 = Builder.CreateElementBitCast(This, VTableTy);
-      Address VTablePtrSrc1(
-          Builder.CreateInBoundsGEP(VTablePtrSrc0.getPointer(), Offset),
-          This.getAlignment());
-
-      /* use volatile loads, because compiler can't see memory failures */
-      auto VTable0 = Builder.CreateLoad(VTablePtrSrc0, true, "vtable");
-      auto VTable1 = Builder.CreateLoad(VTablePtrSrc1, true);
-      CGM.DecorateInstructionWithTBAA(VTable0, CGM.getTBAAInfoForVTablePtr());
-      CGM.DecorateInstructionWithTBAA(VTable1, CGM.getTBAAInfoForVTablePtr());
-
-      if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-          CGM.getCodeGenOpts().StrictVTablePointers) {
-        CGM.DecorateInstructionWithInvariantGroup(VTable0, RD);
-        CGM.DecorateInstructionWithInvariantGroup(VTable1, RD);
+      llvm::SmallVector<llvm::Value *, 3> VTable;
+      const Address VTableField = Builder.CreateElementBitCast(This, VTableTy);
+      for (unsigned replica = 0; replica < replicas + 1; ++replica) {
+        VTable[replica] = accessVTableReplica(
+            VTableField, RD, replica, [this](const Address &VTableReplica) {
+              return Builder.CreateLoad(VTableReplica, true);
+            });
       }
 
-      llvm::Value *eq12 = Builder.CreateICmpEQ(VTable0, VTable1, "cmp12");
+      llvm::Value *eq12 = Builder.CreateICmpEQ(VTable[0], VTable[1], "cmp12");
 
       llvm::BasicBlock *ContBlock = createBasicBlock("vtable.check.cont");
       llvm::BasicBlock *TrapBlock = createBasicBlock("vtable.check.trap");
@@ -2663,59 +2635,46 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
       if (replicas == LangOptions::DMR) {
         Builder.CreateCondBr(eq12, ContBlock, TrapBlock);
       } else { /* LangOptions::TMR */
-        Address VTablePtrSrc2(
-            Builder.CreateInBoundsGEP(VTablePtrSrc1.getPointer(), Offset),
-            This.getAlignment());
+        llvm::Value *eq13 = Builder.CreateICmpEQ(VTable[0], VTable[2], "cmp13");
+        llvm::Value *eq23 = Builder.CreateICmpEQ(VTable[1], VTable[2], "cmp23");
 
-        auto VTable2 = Builder.CreateLoad(VTablePtrSrc2, true);
-        CGM.DecorateInstructionWithTBAA(VTable2, CGM.getTBAAInfoForVTablePtr());
-        if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-            CGM.getCodeGenOpts().StrictVTablePointers)
-          CGM.DecorateInstructionWithInvariantGroup(VTable2, RD);
+        llvm::SmallVector<llvm::BasicBlock*, 3> IsRepFaulty;
+        llvm::SmallVector<llvm::BasicBlock*, 3> Repair;
 
-        llvm::Value *eq13 = Builder.CreateICmpEQ(VTable0, VTable2, "cmp13");
-        llvm::Value *eq23 = Builder.CreateICmpEQ(VTable1, VTable2, "cmp23");
-
-        llvm::BasicBlock *IsRep3Faulty = createBasicBlock("vtable.check.test3");
-        llvm::BasicBlock *IsRep1Faulty = createBasicBlock("vtable.check.test1");
-        llvm::BasicBlock *IsRep2Faulty = createBasicBlock("vtable.check.test2");
-        llvm::BasicBlock *Repair1 = createBasicBlock("vtable.repair.1");
-        llvm::BasicBlock *Repair2 = createBasicBlock("vtable.repair.2");
-        llvm::BasicBlock *Repair3 = createBasicBlock("vtable.repair.3");
+        for (int replica = 0; replica < 3; ++replica) {
+          const auto rep = std::to_string(replica);
+          IsRepFaulty[replica] = createBasicBlock("vtable.check.test." + rep);
+          Repair[replica] = createBasicBlock("vtable.repair." + rep);
+        }
 
         /*
          * compare and fix, or fault if not recoverable
          * compare all three copies, to avoid writing eagerly.
          */
         auto no_fault = Builder.CreateAnd(eq12, eq23);
-        Builder.CreateCondBr(no_fault, ContBlock, IsRep3Faulty);
-        EmitBlock(IsRep3Faulty);
-        Builder.CreateCondBr(eq12, Repair3, IsRep1Faulty);
+        Builder.CreateCondBr(no_fault, ContBlock, IsRepFaulty[0]);
 
-        EmitBlock(IsRep1Faulty);
-        Builder.CreateCondBr(eq23, Repair1, IsRep2Faulty);
+        EmitBlock(IsRepFaulty[0]);
+        Builder.CreateCondBr(eq23, Repair[0], IsRepFaulty[1]);
 
-        EmitBlock(IsRep2Faulty);
-        Builder.CreateCondBr(eq13, Repair2, TrapBlock);
+        EmitBlock(IsRepFaulty[1]);
+        Builder.CreateCondBr(eq13, Repair[1], IsRepFaulty[2]);
 
-        const auto TBAAInfo = CGM.getTBAAInfoForVTablePtr();
-        {
-          EmitBlock(Repair3);
-          auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc2);
-          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
+        EmitBlock(IsRepFaulty[2]);
+        Builder.CreateCondBr(eq12, Repair[2], TrapBlock);
+        
+        const auto RepairReplica = [&, RD, ContBlock, this](unsigned replica) {
+          EmitBlock(Repair[replica]);
+          accessVTableReplica(
+              VTableField, RD, replica, [=, &VTable](const Address &Replica) {
+                /* repair from next copy + wrap around for last replica */
+                return Builder.CreateStore(VTable[(replica + 1) % 3], Replica);
+              });
           EmitBranch(ContBlock);
-        }
-        {
-          EmitBlock(Repair2);
-          auto Repair = Builder.CreateStore(VTable0, VTablePtrSrc1);
-          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
-          EmitBranch(ContBlock);
-        }
-        {
-          EmitBlock(Repair1);
-          auto Repair = Builder.CreateStore(VTable1, VTablePtrSrc0);
-          CGM.DecorateInstructionWithTBAA(Repair, TBAAInfo);
-          EmitBranch(ContBlock);
+        };
+
+        for (int replica = 0; replica < 3; ++replica) {
+          RepairReplica(replica);
         }
       }
 

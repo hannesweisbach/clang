@@ -1445,6 +1445,27 @@ public:
     const CXXRecordDecl *VTableClass;
   };
 
+private:
+  template <typename LoadStore>
+  llvm::Value *accessVTableReplica(const Address &VTable,
+                                   const CXXRecordDecl *VTableClass,
+                                   unsigned replica, LoadStore &&ls) {
+    std::string name("vtable." + std::to_string(replica));
+    const unsigned idx = replica * (CGM.getLangOpts().ProtectVptrExtended + 1);
+    llvm::Value *ptr = Builder.CreateConstInBoundsGEP1_32(
+        VTable.getType(), VTable.getPointer(), idx, name);
+
+    llvm::Instruction *insn = ls(Address(ptr, VTable.getAlignment()));
+
+    CGM.DecorateInstructionWithTBAA(insn, CGM.getTBAAInfoForVTablePtr());
+    if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+        CGM.getCodeGenOpts().StrictVTablePointers)
+      CGM.DecorateInstructionWithInvariantGroup(insn, VTableClass);
+
+    return insn;
+  }
+
+public:
   /// Initialize the vtable pointer of the given subobject.
   void InitializeVTablePointer(const VPtr &vptr);
 
