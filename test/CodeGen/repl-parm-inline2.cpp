@@ -1,4 +1,3 @@
-// RUN: %clang_cc1 -x c++ -emit-llvm  -frepl-parm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -x c++ -emit-llvm  -frepl-parm -fno-repl-inline %s -o - | FileCheck -check-prefix INLINE %s
 
 class TestClass
