@@ -1249,6 +1249,12 @@ void CodeGenFunction::EmitPointerParmReplicaUpdate(const ParmVarDecl *PVD,
 
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    return;
+
   auto &&diag = CGM.getDiags();
   unsigned DiagID =
       diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
@@ -1274,6 +1280,12 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    return;
+
   auto &&diag = CGM.getDiags();
   unsigned DiagID =
       diag.getCustomDiagID(CGM.getLangOpts().VerboseFaultTolerance
