@@ -1372,6 +1372,12 @@ static bool hasOmitReplReturn(const Decl *D) {
 
 void CodeGenFunction::EmitReplicateReturnProlog()
 {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    return;
+
   if (hasOmitReplReturn(CurCodeDecl))
     return;
 
@@ -1389,6 +1395,12 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
 {
+  auto* GD = dyn_cast_or_null<clang::FunctionDecl>(CurCodeDecl);
+  if(getLangOpts().NoReplInline &&
+     (!GD || GD->isInlined()
+      || CurFn->hasFnAttribute(llvm::Attribute::InlineHint)))
+    return;
+
   if (hasOmitReplReturn(CurCodeDecl))
     return;
 
