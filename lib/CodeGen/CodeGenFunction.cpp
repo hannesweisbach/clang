@@ -1383,6 +1383,11 @@ void CodeGenFunction::EmitReplicateReturnProlog()
 
   auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
   auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  llvm::MDNode* retMD = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(),
+                        "returnaddress"));
+  retAddr1->setMetadata("returnaddressMD", retMD);
   QualType int8ty = getContext().CharTy.withConst();
   QualType int8ptrty = getContext().getPointerType(int8ty);
   retAddrLoc1 = CreateMemTemp(int8ptrty, "retAddrLoc1");

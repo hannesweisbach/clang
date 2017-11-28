@@ -2471,6 +2471,12 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
   VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);
 
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
+  llvm::MDNode* vptrMD = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(),
+                        "vptrStore"));
+  Store->setMetadata("vptrStoreMD", vptrMD);
+
   CGM.DecorateInstructionWithTBAA(Store, CGM.getTBAAInfoForVTablePtr());
   if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
       CGM.getCodeGenOpts().StrictVTablePointers)
@@ -2510,7 +2516,7 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
           VTableField = Address(ptr, VTableField.getAlignment());
         }
         Store = Builder.CreateStore(VTableAddressPoint, VTableField);
-        
+        Store->setMetadata("vptrStoreMD", vptrMD);
         CGM.DecorateInstructionWithTBAA(Store, CGM.getTBAAInfoForVTablePtr());
         if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
             CGM.getCodeGenOpts().StrictVTablePointers)
@@ -2644,8 +2650,14 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
           This.getAlignment());
 
       /* use volatile loads, because compiler can't see memory failures */
+      llvm::MDNode* vptrMD = llvm::MDNode::get(
+        getLLVMContext(),
+        llvm::MDString::get(getLLVMContext(),
+                            "vptrLoad"));
       auto VTable0 = Builder.CreateLoad(VTablePtrSrc0, true, "vtable");
+      VTable0->setMetadata("vptrLoadMD", vptrMD);
       auto VTable1 = Builder.CreateLoad(VTablePtrSrc1, true);
+      VTable1->setMetadata("vptrLoadMD", vptrMD);
       CGM.DecorateInstructionWithTBAA(VTable0, CGM.getTBAAInfoForVTablePtr());
       CGM.DecorateInstructionWithTBAA(VTable1, CGM.getTBAAInfoForVTablePtr());
 
