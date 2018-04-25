@@ -451,7 +451,6 @@ void ConstStructBuilder::Build(const APValue &Val, const RecordDecl *RD,
                                 : 1 * getSizeInChars(VTableAddressPoint);
         auto copy_offset = stride;
         for (unsigned replica = 0; replica < replicas; ++replica) {
-          llvm::outs() << "is constant??????????????????\n";
           AppendBytes(Offset + copy_offset, VTableAddressPoint);
           copy_offset += stride;
         }

@@ -1,3 +1,4 @@
+#include <iostream>
 //===--- CGClass.cpp - Emit LLVM Code for C++ classes -----------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -739,7 +740,7 @@ static void EmitMemberInitializer(CodeGenFunction &CGF,
       // the constructor.
       QualType::DestructionKind dtorKind = FieldType.isDestructedType();
       if (CGF.needsEHCleanup(dtorKind))
-        CGF.pushEHDestroy(dtorKind, LHS.getAddress(), FieldType); 
+        CGF.pushEHDestroy(dtorKind, LHS.getAddress(), FieldType);
       return;
     }
   }
@@ -988,7 +989,7 @@ namespace {
     SanitizerSet OldSanOpts;
   };
 } // end anonymous namespace
- 
+
 namespace {
   class FieldMemcpyizer {
   public:
@@ -1978,7 +1979,7 @@ void CodeGenFunction::EmitCXXAggrConstructorCall(const CXXConstructorDecl *ctor,
   // The alignment of the base, adjusted by the size of a single element,
   // provides a conservative estimate of the alignment of every element.
   // (This assumes we never start tracking offsetted alignments.)
-  // 
+  //
   // Note that these are complete objects and so we don't need to
   // use the non-virtual size or alignment.
   QualType type = getContext().getTypeDeclType(ctor->getParent());
@@ -2650,14 +2651,18 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
           This.getAlignment());
 
       /* use volatile loads, because compiler can't see memory failures */
-      llvm::MDNode* vptrMD = llvm::MDNode::get(
+      llvm::MDNode* vptrMD0 = llvm::MDNode::get(
         getLLVMContext(),
         llvm::MDString::get(getLLVMContext(),
-                            "vptrLoad"));
+                            "vptrLoad0"));
+      llvm::MDNode* vptrMD1 = llvm::MDNode::get(
+        getLLVMContext(),
+        llvm::MDString::get(getLLVMContext(),
+                            "vptrLoad1"));
       auto VTable0 = Builder.CreateLoad(VTablePtrSrc0, true, "vtable");
-      VTable0->setMetadata("vptrLoadMD", vptrMD);
+      VTable0->setMetadata("vptrLoadMD0", vptrMD0);
       auto VTable1 = Builder.CreateLoad(VTablePtrSrc1, true);
-      VTable1->setMetadata("vptrLoadMD", vptrMD);
+      VTable1->setMetadata("vptrLoadMD1", vptrMD1);
       CGM.DecorateInstructionWithTBAA(VTable0, CGM.getTBAAInfoForVTablePtr());
       CGM.DecorateInstructionWithTBAA(VTable1, CGM.getTBAAInfoForVTablePtr());
 
@@ -2680,6 +2685,11 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
             This.getAlignment());
 
         auto VTable2 = Builder.CreateLoad(VTablePtrSrc2, true);
+        llvm::MDNode* vptrMD2 = llvm::MDNode::get(
+          getLLVMContext(),
+          llvm::MDString::get(getLLVMContext(),
+                              "vptrLoad2"));
+        VTable2->setMetadata("vptrLoadMD2", vptrMD2);
         CGM.DecorateInstructionWithTBAA(VTable2, CGM.getTBAAInfoForVTablePtr());
         if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
             CGM.getCodeGenOpts().StrictVTablePointers)
@@ -2740,7 +2750,13 @@ llvm::Value *CodeGenFunction::GetVTablePtr(llvm::Value *This,
   }
 
   Address VTablePtrSrc = Builder.CreateElementBitCast(This, VTableTy);
+  llvm::MDNode* vptrMDF = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(),
+                        "vptrLoadF"));
+  std::cout << "vptrLoadS" << std::endl;
   llvm::Instruction *VTable = Builder.CreateLoad(VTablePtrSrc, "vtable");
+  VTable->setMetadata("vptrLoadMDF", vptrMDF);
   CGM.DecorateInstructionWithTBAA(VTable, CGM.getTBAAInfoForVTablePtr());
 
   if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&

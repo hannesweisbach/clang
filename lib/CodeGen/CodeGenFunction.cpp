@@ -1381,21 +1381,33 @@ void CodeGenFunction::EmitReplicateReturnProlog()
   if (hasOmitReplReturn(CurCodeDecl))
     return;
 
-  auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
-  auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
-  llvm::MDNode* retMD = llvm::MDNode::get(
-    getLLVMContext(),
-    llvm::MDString::get(getLLVMContext(),
-                        "returnaddress"));
-  retAddr1->setMetadata("returnaddressMD", retMD);
   QualType int8ty = getContext().CharTy.withConst();
   QualType int8ptrty = getContext().getPointerType(int8ty);
+  auto getRA = CGM.getIntrinsic(llvm::Intrinsic::returnaddress);
+
+  auto retAddr1 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  llvm::MDNode* getRAMD1 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "getRA1"));
+  retAddr1->setMetadata("getRAMD1", getRAMD1);
   retAddrLoc1 = CreateMemTemp(int8ptrty, "retAddrLoc1");
-  Builder.CreateStore(retAddr1, retAddrLoc1);
+  auto storeRA1 = Builder.CreateStore(retAddr1, retAddrLoc1);
+  llvm::MDNode* storeRAMD1 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "storeRA1"));
+  storeRA1->setMetadata("storeRAMD1", storeRAMD1);
 
   auto retAddr2 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  llvm::MDNode* getRAMD2 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "getRA2"));
+  retAddr2->setMetadata("getRAMD2", getRAMD2);
   retAddrLoc2 = CreateMemTemp(int8ptrty, "retAddrLoc2");
-  Builder.CreateStore(retAddr2, retAddrLoc2);
+  auto storeRA2 = Builder.CreateStore(retAddr2, retAddrLoc2);
+  llvm::MDNode* storeRAMD2 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "storeRA2"));
+  storeRA2->setMetadata("storeRAMD2", storeRAMD2);
 }
 
 void CodeGenFunction::EmitReplicateReturnEpilog()
@@ -1443,29 +1455,99 @@ void CodeGenFunction::EmitReplicateReturnEpilog()
   auto RestoreRetAddr = createBasicBlock("repl.ret.restore");
 
   auto retAddr3 = Builder.CreateCall(getRA, Builder.getInt32(0));
+  llvm::MDNode* getRAMD3 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(),
+                        "getRA3"));
+  retAddr3->setMetadata("getRAMD3", getRAMD3);
+
   auto retAddr1 = Builder.CreateLoad(retAddrLoc1, "retAddr1");
+  llvm::MDNode* loadRAMD1 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "loadRA1"));
+  retAddr1->setMetadata("loadRAMD1", loadRAMD1);
+
   auto eq13 = Builder.CreateICmpEQ(retAddr1, retAddr3, "comp13");
+  llvm::MDNode* compRAMD13 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "compRA13"));
+  if (llvm::Instruction *eq13Inst =
+      dyn_cast_or_null<llvm::Instruction>(eq13)) {
+    eq13Inst->setMetadata("compRAMD13", compRAMD13);
+  }
+
   Builder.CreateCondBr(eq13, ContBlock, Check13Fail);
 
   EmitBlock(TrapBlock);
-  if (CGM.getLangOpts().ReplReturnDbg)
-    Builder.CreateCall(funcTrap, {});
+  // if (CGM.getLangOpts().ReplReturnDbg)
+  //   Builder.CreateCall(funcTrap, {});
   Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap), {});
   Builder.CreateUnreachable();
 
   EmitBlock(Check13Fail);
   auto retAddr2 = Builder.CreateLoad(retAddrLoc2, "retAddr2");
+  llvm::MDNode* loadRAMD2 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "loadRA2"));
+  retAddr2->setMetadata("loadRAMD2", loadRAMD2);
+
   auto eq23 = Builder.CreateICmpEQ(retAddr2, retAddr3, "comp23");
+  llvm::MDNode* compRAMD23 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "compRA23"));
+  if (llvm::Instruction *eq23Inst =
+      dyn_cast_or_null<llvm::Instruction>(eq23)) {
+    eq23Inst->setMetadata("compRAMD23", compRAMD23);
+  }
+
   Builder.CreateCondBr(eq23, ContBlock, Check23Fail);
 
   EmitBlock(Check23Fail);
   auto eq12 = Builder.CreateICmpEQ(retAddr1, retAddr2, "comp12");
+  llvm::MDNode* compRAMD12 = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "compRA12"));
+  if (llvm::Instruction *eq12Inst =
+      dyn_cast_or_null<llvm::Instruction>(eq12)) {
+    eq12Inst->setMetadata("compRAMD12", compRAMD12);
+  }
+
   Builder.CreateCondBr(eq12, RestoreRetAddr, TrapBlock);
 
   EmitBlock(RestoreRetAddr);
   if (CGM.getLangOpts().ReplReturnDbg)
-    Builder.CreateCall(funcRestore, {});
-  Builder.CreateCall(setRA, retAddr1);
+  {
+    // Builder.CreateCall(funcRestore, {});
+
+    std::vector<llvm::Type*> params;
+    params.push_back(llvm::Type::getInt8PtrTy(getLLVMContext()));
+    llvm::FunctionType *printfType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(getLLVMContext()), params, true);
+    llvm::Value* printFh = CGM.getModule().getOrInsertFunction("printf",printfType);
+    if(!printFh){
+      llvm::errs() << "printf function not in symbol table\n";
+      exit(1);
+    }
+    auto* FD = dyn_cast_or_null<clang::FunctionDecl>(CurFuncDecl);
+    if (FD) {
+      llvm::StringRef funcName = FD->getNameAsString();
+      llvm::Value* strFuncName = Builder.CreateGlobalStringPtr(funcName);
+      llvm::StringRef st = "Yes (same return address, function: %s)!\n";
+      llvm::Value* strTrue = Builder.CreateGlobalStringPtr(st);
+      Builder.CreateCall(printFh, {strTrue, strFuncName});
+
+    } else {
+      llvm::StringRef st = "Yes (same return address, function: XXX)!\n";
+      llvm::Value* strTrue = Builder.CreateGlobalStringPtr(st);
+      Builder.CreateCall(printFh, strTrue);
+    }
+  }
+  auto restoreRA = Builder.CreateCall(setRA, retAddr1);
+  llvm::MDNode* restoreRAMD = llvm::MDNode::get(
+    getLLVMContext(),
+    llvm::MDString::get(getLLVMContext(), "restoreRA"));
+  restoreRA->setMetadata("restoreRAMD", restoreRAMD);
+
 
   EmitBlock(ContBlock);
 }
